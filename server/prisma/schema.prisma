@@ -1,0 +1,165 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+  FINANCE
+  PROCUREMENT
+  MANAGER
+  VENDOR
+}
+
+enum VendorStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum ContractStatus {
+  ACTIVE
+  EXPIRED
+  TERMINATED
+}
+
+enum POStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  CLOSED
+}
+
+enum InvoiceStatus {
+  SUBMITTED
+  MATCHED
+  MISMATCHED
+  APPROVED
+  PAID
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role
+  companyId String?
+  notificationPreferences Json?
+  company   Company? @relation(fields: [companyId], references: [id])
+  createdAt DateTime @default(now())
+
+  purchaseOrders PurchaseOrder[] @relation("CreatedBy")
+  auditLogs      AuditLog[]
+  notifications  Notification[]
+
+  @@index([email])
+  @@index([companyId])
+}
+
+model Company {
+  id        String   @id @default(uuid())
+  name      String
+  address   String
+  gstin     String?
+  createdAt DateTime @default(now())
+
+  users User[]
+}
+
+model Vendor {
+  id               String       @id @default(uuid())
+  companyName      String
+  contactName      String
+  email            String       @unique
+  phone            String
+  status           VendorStatus @default(PENDING)
+  documents        Json?
+  performanceScore Float?       @default(0.0)
+  createdAt        DateTime     @default(now())
+
+  contracts      Contract[]
+  purchaseOrders PurchaseOrder[]
+  invoices       Invoice[]
+
+  @@index([email])
+}
+
+model Contract {
+  id        String         @id @default(uuid())
+  vendorId  String
+  vendor    Vendor         @relation(fields: [vendorId], references: [id])
+  title     String
+  startDate DateTime
+  endDate   DateTime
+  fileUrl   String?
+  status    ContractStatus @default(ACTIVE)
+  createdAt DateTime       @default(now())
+
+  @@index([vendorId])
+}
+
+model PurchaseOrder {
+  id                   String   @id @default(uuid())
+  poNumber             String   @unique @default(uuid())
+  vendorId             String
+  vendor               Vendor   @relation(fields: [vendorId], references: [id])
+  createdById          String
+  createdBy            User     @relation("CreatedBy", fields: [createdById], references: [id])
+  status               POStatus @default(DRAFT)
+  items                Json
+  totalAmount          Float
+  approvalChain        Json?
+  currentApproverIndex Int      @default(0)
+  createdAt            DateTime @default(now())
+
+  invoices Invoice[]
+
+  @@index([vendorId])
+  @@index([createdById])
+}
+
+model Invoice {
+  id            String        @id @default(uuid())
+  invoiceNumber String        @unique
+  poId          String
+  po            PurchaseOrder @relation(fields: [poId], references: [id])
+  vendorId      String
+  vendor        Vendor        @relation(fields: [vendorId], references: [id])
+  amount        Float
+  status        InvoiceStatus @default(SUBMITTED)
+  fileUrl       String?
+  submittedAt   DateTime      @default(now())
+
+  @@index([poId])
+  @@index([vendorId])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([entity, entityId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}

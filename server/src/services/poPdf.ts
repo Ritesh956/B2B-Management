@@ -1,0 +1,162 @@
+import puppeteer from 'puppeteer';
+import { prisma } from '../config/prisma';
+
+type ApprovalStep = {
+  role: string;
+  approved: boolean;
+  approvedAt: string | null;
+};
+
+export const generatePO = async (poId: string): Promise<Buffer> => {
+  const po = await prisma.purchaseOrder.findUnique({
+    where: { id: poId },
+    include: {
+      vendor: true,
+      createdBy: { select: { name: true, email: true } },
+    },
+  });
+
+  if (!po) {
+    throw new Error('PO_NOT_FOUND');
+  }
+
+  const items = (Array.isArray(po.items) ? po.items : []) as Array<{
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    lineTotal?: number;
+  }>;
+
+  const chain = (po.approvalChain as any) ?? { steps: [] };
+  const steps: ApprovalStep[] = Array.isArray(chain.steps)
+    ? chain.steps.map((s: any) => ({
+        role: s.role,
+        approved: Boolean(s.approved),
+        approvedAt: s.approvedAt ?? null,
+      }))
+    : [];
+
+  const itemRows = items
+    .map((item, idx) => {
+      const lineTotal = Number(item.lineTotal ?? item.quantity * item.unitPrice);
+      return `
+        <tr>
+          <td>${idx + 1}</td>
+          <td>${item.description}</td>
+          <td class="num">${Number(item.quantity).toFixed(2)}</td>
+          <td class="num">${Number(item.unitPrice).toFixed(2)}</td>
+          <td class="num">${lineTotal.toFixed(2)}</td>
+        </tr>
+      `;
+    })
+    .join('');
+
+  const signatureRows = steps
+    .map(
+      (step) => `
+      <tr>
+        <td>${step.role}</td>
+        <td>${step.approved ? 'Approved' : 'Pending'}</td>
+        <td>${step.approvedAt ? new Date(step.approvedAt).toLocaleString() : '__________'}</td>
+        <td>____________________</td>
+      </tr>
+    `
+    )
+    .join('');
+
+  const html = `
+  <html>
+    <head>
+      <style>
+        body { font-family: Arial, sans-serif; color: #1f2937; margin: 0; padding: 24px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .logo { width: 180px; height: 56px; border: 2px dashed #9ca3af; display: flex; align-items: center; justify-content: center; color: #6b7280; font-size: 12px; }
+        .title { text-align: right; }
+        .title h1 { margin: 0; color: #111827; }
+        .meta, .vendor { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
+        .meta td, .vendor td { padding: 6px 8px; border: 1px solid #e5e7eb; font-size: 12px; }
+        .section-title { margin: 16px 0 8px; font-weight: bold; color: #111827; }
+        table.items, table.signatures { width: 100%; border-collapse: collapse; }
+        table.items th, table.items td, table.signatures th, table.signatures td {
+          border: 1px solid #d1d5db; padding: 8px; font-size: 12px;
+        }
+        table.items th, table.signatures th { background: #f3f4f6; text-align: left; }
+        .num { text-align: right; }
+        .total { margin-top: 10px; text-align: right; font-size: 14px; font-weight: bold; }
+        .footer { margin-top: 22px; font-size: 11px; color: #6b7280; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <div class="logo">Company Logo Placeholder</div>
+        <div class="title">
+          <h1>PURCHASE ORDER</h1>
+          <div>PO No: ${po.poNumber}</div>
+          <div>Date: ${new Date(po.createdAt).toLocaleDateString()}</div>
+        </div>
+      </div>
+
+      <table class="meta">
+        <tr>
+          <td><strong>Created By</strong></td>
+          <td>${po.createdBy.name} (${po.createdBy.email})</td>
+          <td><strong>Status</strong></td>
+          <td>${po.status}</td>
+        </tr>
+      </table>
+
+      <div class="section-title">Vendor Details</div>
+      <table class="vendor">
+        <tr><td><strong>Company</strong></td><td>${po.vendor.companyName}</td></tr>
+        <tr><td><strong>Contact</strong></td><td>${po.vendor.contactName}</td></tr>
+        <tr><td><strong>Email</strong></td><td>${po.vendor.email}</td></tr>
+        <tr><td><strong>Phone</strong></td><td>${po.vendor.phone}</td></tr>
+      </table>
+
+      <div class="section-title">Line Items</div>
+      <table class="items">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Description</th>
+            <th>Qty</th>
+            <th>Unit Price</th>
+            <th>Line Total</th>
+          </tr>
+        </thead>
+        <tbody>${itemRows}</tbody>
+      </table>
+      <div class="total">Total: ${po.totalAmount.toFixed(2)}</div>
+
+      <div class="section-title">Approval Signatures</div>
+      <table class="signatures">
+        <thead>
+          <tr>
+            <th>Role</th>
+            <th>Status</th>
+            <th>Approved On</th>
+            <th>Signature</th>
+          </tr>
+        </thead>
+        <tbody>${signatureRows || '<tr><td colspan="4">No approval steps configured</td></tr>'}</tbody>
+      </table>
+
+      <div class="footer">Generated by Vendor Platform on ${new Date().toLocaleString()}</div>
+    </body>
+  </html>
+  `;
+
+  const browser = await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
+  });
+
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'networkidle0' });
+    const pdf = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '16px', right: '16px', bottom: '16px', left: '16px' } });
+    return Buffer.from(pdf);
+  } finally {
+    await browser.close();
+  }
+};
