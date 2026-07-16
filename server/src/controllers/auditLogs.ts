@@ -1,9 +1,39 @@
 import { Response } from 'express';
+import { Role } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { AuthRequest } from '../middlewares/authenticate';
 
+// Entity types ActivityFeed actually embeds on detail pages. Anything outside
+// this whitelist stays ADMIN-only, same as an unscoped browse.
+const SCOPED_ENTITIES = new Set(['PurchaseOrder', 'Invoice', 'Vendor']);
+
+// For a non-admin caller asking about one specific entity+entityId (the
+// ActivityFeed case, never the broad-browse Audit Logs page), work out which
+// vendor email owns that record — or null if it's not a vendor-owned entity
+// check at all (staff roles don't need one).
+const getOwningVendorEmail = async (entity: string, entityId: string): Promise<string | null> => {
+  if (entity === 'Vendor') {
+    const vendor = await prisma.vendor.findUnique({ where: { id: entityId }, select: { email: true } });
+    return vendor?.email ?? null;
+  }
+  if (entity === 'PurchaseOrder') {
+    const po = await prisma.purchaseOrder.findUnique({ where: { id: entityId }, select: { vendor: { select: { email: true } } } });
+    return po?.vendor.email ?? null;
+  }
+  if (entity === 'Invoice') {
+    const invoice = await prisma.invoice.findUnique({ where: { id: entityId }, select: { vendor: { select: { email: true } } } });
+    return invoice?.vendor.email ?? null;
+  }
+  return null;
+};
+
 export const listAuditLogs = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Not authenticated' });
+      return;
+    }
+
     const {
       page = '1',
       limit = '20',
@@ -14,6 +44,30 @@ export const listAuditLogs = async (req: AuthRequest, res: Response): Promise<vo
       to,
       search,
     } = req.query as Record<string, string>;
+
+    if (req.user.role !== Role.ADMIN) {
+      // Non-admins may only ask about one specific, owned entity (what the
+      // embedded ActivityFeed widget does) — never the unscoped admin browse.
+      if (!entity || !entityId || !SCOPED_ENTITIES.has(entity)) {
+        res.status(403).json({ error: 'Not authorized to browse audit logs' });
+        return;
+      }
+
+      if (req.user.role === Role.VENDOR) {
+        const [requester, owningEmail] = await Promise.all([
+          prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } }),
+          getOwningVendorEmail(entity, entityId),
+        ]);
+
+        if (!owningEmail || requester?.email !== owningEmail) {
+          res.status(404).json({ error: 'Not found' });
+          return;
+        }
+      }
+      // FINANCE/PROCUREMENT/MANAGER already have unrestricted view access to
+      // PurchaseOrder/Invoice/Vendor detail pages elsewhere in the app, so no
+      // further ownership check is needed for those roles.
+    }
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));

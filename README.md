@@ -103,9 +103,6 @@ VendorHub is a robust, scalable B2B vendor management platform designed for comp
 | **MANAGER** | General oversight, analytics viewing, vendor scoring. |
 | **VENDOR** | Isolated portal access. View their POs/contracts, submit invoices, update profile. |
 
-## Known Issues
-- `ActivityFeed` (shown on PO/Invoice/Vendor/Contract detail pages) calls the Admin-only `GET /api/v1/audit-logs` endpoint regardless of the viewer's role. Non-Admin users (Finance, Procurement, Manager, Vendor) get a 403 and see "No activity recorded yet" instead of real history. Fails gracefully — no crash, no data exposure — but the history is missing for those roles.
-
 ## Deployment Instructions (Ubuntu VPS via Docker)
 1. Provision a Ubuntu VPS and install Docker & Docker Compose.
 2. Clone the repository to your server.

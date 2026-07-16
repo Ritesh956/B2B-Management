@@ -1,11 +1,12 @@
 import { Router } from 'express';
-import { Role } from '@prisma/client';
 import { authenticate } from '../middlewares/authenticate';
-import { authorize } from '../middlewares/authorize';
 import { listAuditLogs } from '../controllers/auditLogs';
 
 const router = Router();
 
-router.get('/', authenticate, authorize([Role.ADMIN]), listAuditLogs);
+// Role/ownership scoping happens inside the controller: ADMIN can browse the
+// full log unscoped, everyone else must ask about one specific, owned entity
+// (see listAuditLogs for the details) — that's what ActivityFeed relies on.
+router.get('/', authenticate, listAuditLogs);
 
 export default router;
