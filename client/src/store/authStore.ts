@@ -22,13 +22,15 @@ export interface AuthUser {
     invoiceUpdates: boolean;
     contractReminders: boolean;
   } | null;
+  isTwoFactorEnabled?: boolean;
 }
 
 interface AuthState {
   user: AuthUser | null;
   token: string | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<{ requiresOtp?: boolean; tempToken?: string }>;
+  verifyOtp: (tempToken: string, otp: string) => Promise<void>;
   logout: () => void;
   hydrate: () => Promise<void>;
 }
@@ -42,9 +44,38 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ isLoading: true });
     try {
       const { data } = await api.post('/auth/login', { email, password });
+      
+      if (data.requiresOtp) {
+        set({ isLoading: false });
+        return data; // { requiresOtp: true, tempToken: string }
+      }
+
       localStorage.setItem('token', data.token);
 
       // Fetch user profile immediately after login
+      const me = await api.get('/auth/me');
+
+      set({
+        token: data.token,
+        user: me.data.user,
+        isLoading: false
+      });
+
+      return {};
+    } catch (err) {
+      set({ isLoading: false });
+      throw err;
+    }
+  },
+
+  verifyOtp: async (tempToken, otp) => {
+    set({ isLoading: true });
+    try {
+      const { data } = await api.post('/auth/verify-otp', { otp }, {
+        headers: { Authorization: `Bearer ${tempToken}` }
+      });
+
+      localStorage.setItem('token', data.token);
       const me = await api.get('/auth/me');
 
       set({

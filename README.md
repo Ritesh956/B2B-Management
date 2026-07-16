@@ -1,192 +1,112 @@
-# Vendor Platform
+# VendorHub
 
-A role-based vendor management platform with modules for vendor onboarding, purchase order approvals, invoice workflows, contracts, notifications, audit logs, and role-specific dashboards.
+VendorHub is a robust, scalable B2B vendor management platform designed for complete vendor lifecycle operations. It securely streamlines purchasing, invoice processing, contract compliance, and comprehensive reporting across various enterprise roles including Admins, Finance, Procurement, Managers, and Vendors. 
+
+## Features
+- **Role-Based Access Control**: Strict permissions model via JWT and robust backend authorization.
+- **Vendor Portal**: An isolated, secure dashboard for vendors to manage their profile, POs, and invoices.
+- **Purchase & Invoices**: Full PO matching, soft-delete audits, and bulk approval actions for finance teams.
+- **Real-Time Notifications**: Instant updates to users via WebSocket (Socket.io) for critical status changes.
+- **Performance & Reports**: Graphical breakdowns using Recharts and headless browser PDF exports (Puppeteer).
+- **Hardened API**: Rate-limited, versioned (`/api/v1`), and validated environment startup logic.
+- **Resilient Infrastructure**: Soft deletes via Prisma, automated background queues (Bull/Redis), and scheduled cron jobs.
 
 ## Tech Stack
+| Layer           | Technologies                                                                 |
+|-----------------|------------------------------------------------------------------------------|
+| **Frontend**    | React, TypeScript, Tailwind CSS v4 (Class-based Dark Mode), Zustand, Recharts |
+| **Backend**     | Node.js, Express, Prisma ORM, Socket.io, Bull (Redis), Puppeteer, Zod         |
+| **Database**    | PostgreSQL 15, Redis 7                                                       |
+| **DevOps**      | Docker, Docker Compose, Nginx, GitHub Actions (CI)                            |
 
-- Frontend: React + TypeScript + Vite + Tailwind + Recharts
-- Backend: Node.js + Express + TypeScript + Prisma
-- Database: PostgreSQL
-- Queue/Cache: Redis + Bull
-- File Storage: AWS S3 (PDF/doc uploads)
-- PDF Rendering: Puppeteer (PO PDF generation)
-- Scheduling: node-cron
-- Email: Nodemailer
+## Prerequisites
+- Node.js (v20)
+- Docker & Docker Compose
+- PostgreSQL (if running bare-metal)
 
-## Monorepo Structure
+## Local Setup Instructions
+1. **Clone the repository**:
+   ```bash
+   git clone <repository_url>
+   cd vendor-platform
+   ```
 
-- `client/`: Frontend app
-- `server/`: Backend API and workers
-- `docker-compose.yml`: Full local stack (postgres, redis, server, client)
+2. **Environment Configuration**:
+   Create `.env` files in both the `server` and `client` directories. Follow the examples in the `.env.example` placeholders.
 
-## Local Setup
+3. **Install Dependencies**:
+   ```bash
+   cd server && npm install
+   cd ../client && npm install
+   ```
 
-### 1. Install dependencies
+4. **Initialize Database**:
+   Ensure Docker is running, then spin up the database and apply the schema:
+   ```bash
+   cd server
+   docker run --name vendordb -e POSTGRES_PASSWORD=postgres -p 5433:5432 -d postgres
+   npx prisma migrate dev
+   ```
 
-```bash
-cd server
-npm install
-
-cd ../client
-npm install
-```
-
-### 2. Configure environment variables
-
-Create/update `server/.env` and (optionally) `client/.env`.
-
-### 3. Run backend
-
-```bash
-cd server
-npm run dev
-```
-
-### 4. Run frontend
-
-```bash
-cd client
-npm run dev -- --host 0.0.0.0 --port 5173 --strictPort
-```
-
-### 5. Build verification
-
-```bash
-cd server
-npm run build
-
-cd ../client
-npm run build
-```
-
-## Docker Setup
-
-Run all services in one command:
-
-```bash
-docker-compose up --build
-```
-
-Services started:
-
-- postgres (5432)
-- redis (6379)
-- server (5000)
-- client (5173)
-
-Each service has health checks in `docker-compose.yml`.
+5. **Start Development Servers**:
+   You can start both client and server manually:
+   ```bash
+   cd server && npm run dev
+   cd ../client && npm run dev
+   ```
+   Or use the provided Docker Compose override:
+   ```bash
+   docker-compose -f docker-compose.yml -f docker-compose.override.yml up
+   ```
 
 ## Environment Variables
+### Server
+| Name | Description | Example |
+|------|-------------|---------|
+| `DATABASE_URL` | PostgreSQL connection string | `postgresql://user:pass@localhost:5432/db` |
+| `REDIS_URL` | Redis connection string | `redis://localhost:6379` |
+| `JWT_SECRET` | Secure cryptographic secret | `super_secret_string` |
+| `AWS_REGION` | S3 Region for uploads | `us-east-1` |
+| `SMTP_HOST` | Email Provider Host | `smtp.gmail.com` |
 
-### Server (`server/.env`)
+### Client
+| Name | Description | Example |
+|------|-------------|---------|
+| `VITE_API_URL` | Backend URL | `http://localhost:5000/api/v1` |
 
-- `PORT`: API port (default `5000`)
-- `DATABASE_URL`: PostgreSQL connection string
-- `REDIS_URL`: Redis connection string
-- `JWT_SECRET`: JWT signing secret
-- `AWS_ACCESS_KEY_ID`: S3 access key
-- `AWS_SECRET_ACCESS_KEY`: S3 secret key
-- `AWS_REGION`: S3 region
-- `AWS_S3_BUCKET`: S3 bucket name
-- `SMTP_HOST`: SMTP host
-- `SMTP_PORT`: SMTP port
-- `SMTP_USER`: SMTP username
-- `SMTP_PASS`: SMTP password
-- `EMAIL_FROM`: Sender email address
+## API Endpoints (v1)
 
-### Client (`client/.env`)
+| Module        | Method | Path | Auth | Description |
+|---------------|--------|------|------|-------------|
+| **Auth**      | POST | `/api/v1/auth/login` | Public | Authenticate a user |
+| **Health**    | GET | `/api/v1/health` | Public | Check DB/Redis status |
+| **Admin**     | GET | `/api/v1/admin/deleted-items` | ADMIN | Fetch all soft-deleted records |
+| **Admin**     | PATCH | `/api/v1/admin/restore` | ADMIN | Restore a soft-deleted record |
+| **Vendors**   | POST | `/api/v1/vendors` | PROCUREMENT | Create a vendor |
+| **Vendors**   | GET | `/api/v1/vendors/export` | FINANCE | Export vendors to CSV |
+| **Invoices**  | PATCH| `/api/v1/invoices/bulk` | FINANCE | Approve multiple matched invoices |
+| **Reports**   | GET | `/api/v1/reports/export/monthly-pdf` | FINANCE | Generate monthly PDF report |
+| **Vendor Port**| GET | `/api/v1/vendor/dashboard` | VENDOR | Fetch vendor-specific metrics |
 
-- `VITE_API_URL`: API base URL (example: `http://localhost:5000/api`)
+## Roles & Permissions Matrix
+| Role | Capabilities |
+|------|--------------|
+| **ADMIN** | Full system access. Bulk updates, soft-delete restoration, system settings. |
+| **FINANCE** | Approve invoices, bulk approve, access financial reporting and PDF exports. |
+| **PROCUREMENT** | Onboard vendors, manage contracts, issue purchase orders. |
+| **MANAGER** | General oversight, analytics viewing, vendor scoring. |
+| **VENDOR** | Isolated portal access. View their POs/contracts, submit invoices, update profile. |
 
-## API Endpoints (Grouped by Module)
+## Deployment Instructions (Ubuntu VPS via Docker)
+1. Provision a Ubuntu VPS and install Docker & Docker Compose.
+2. Clone the repository to your server.
+3. Add a `.env.production` file inside the `server/` directory with production secrets.
+4. Build and start the production cluster:
+   ```bash
+   docker-compose build
+   docker-compose up -d
+   ```
+5. Ensure firewall rules allow port `80` and `443` for the Nginx proxy container.
 
-Base URL: `/api`
-
-### Auth
-
-- `POST /auth/register`
-- `POST /auth/login`
-- `GET /auth/me`
-
-### Dashboard
-
-- `GET /dashboard/stats`
-
-### Vendor Management
-
-- `POST /vendors`
-- `GET /vendors`
-- `GET /vendors/:id`
-- `PATCH /vendors/:id/status`
-
-### Purchase Orders
-
-- `POST /pos`
-- `GET /pos`
-- `GET /pos/:id`
-- `GET /pos/:id/pdf`
-- `POST /pos/:id/approve`
-- `POST /pos/:id/reject`
-
-### Invoices
-
-- `POST /invoices`
-- `GET /invoices`
-- `GET /invoices/:id`
-- `PATCH /invoices/:id/approve`
-- `PATCH /invoices/:id/pay`
-
-### Contracts
-
-- `POST /contracts`
-- `GET /contracts`
-- `GET /contracts/:id`
-- `PATCH /contracts/:id`
-
-### Notifications
-
-- `GET /notifications`
-- `PATCH /notifications/:id/read`
-
-### Audit Logs (Admin)
-
-- `GET /audit-logs`
-
-### Vendor Portal (Vendor role only)
-
-- `GET /vendor/dashboard`
-- `GET /vendor/profile`
-- `PATCH /vendor/profile`
-
-## Frontend Routes
-
-### Core App
-
-- `/dashboard`
-- `/vendors`
-- `/vendors/:id`
-- `/pos`
-- `/pos/:id`
-- `/invoices`
-- `/invoices/:id`
-- `/contracts`
-- `/contracts/:id`
-- `/audit-logs`
-
-### Vendor Portal
-
-- `/vendor/dashboard`
-- `/vendor/invoices/new`
-- `/vendor/profile`
-
-## Background Jobs
-
-- `emailQueue`: sends async emails via SMTP
-- `notificationQueue`: creates in-app notifications in DB
-- Contract expiry cron: daily at 9:00 AM, queues email/notification alerts
-
-## Notes
-
-- Invoice submission is restricted to approved POs for vendor users.
-- PO PDF export is available at `GET /api/pos/:id/pdf`.
-- Audit logs are written for mutations across vendors, POs, invoices, contracts, and vendor profile updates.
+---
+*VendorHub - Finalizing enterprise procurement for the modern web.*

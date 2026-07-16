@@ -82,12 +82,14 @@ export const listContracts = async (
   searchVendor?: string,
   page = 1,
   limit = 20,
-  expiringSoon?: boolean
+  expiringSoon?: boolean,
+  filter?: string
 ): Promise<ContractListResponse> => {
   const params = new URLSearchParams();
   if (status) params.append('status', status);
   if (searchVendor) params.append('searchVendor', searchVendor);
   if (expiringSoon) params.append('expiringSoon', 'true');
+  if (filter) params.append('filter', filter);
   params.append('page', String(page));
   params.append('limit', String(limit));
 

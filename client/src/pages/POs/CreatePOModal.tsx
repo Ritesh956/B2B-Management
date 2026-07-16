@@ -71,22 +71,41 @@ export default function CreatePOModal({ vendors, onClose, onCreated }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-4xl bg-slate-900 border border-white/10 rounded-2xl shadow-2xl max-h-[90vh] overflow-auto">
-        <div className="px-6 py-5 border-b border-white/10 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">Create Purchase Order</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white">âœ•</button>
+    <div className="modal-backdrop">
+      <div className="modal-box" style={{ maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto' }}>
+        {/* Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '20px 24px', borderBottom: '1px solid var(--border-dim)'
+        }}>
+          <h2 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>
+            Create Purchase Order
+          </h2>
+          <button
+            onClick={onClose}
+            style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', lineHeight: 1 }}
+          >
+            ✕
+          </button>
         </div>
 
-        <div className="p-6 space-y-5">
-          {error && <p className="text-sm text-red-400">{error}</p>}
+        {/* Body */}
+        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {error && (
+            <p style={{ fontSize: '13px', color: '#ef4444', padding: '10px 14px', background: 'rgba(239,68,68,0.08)', borderRadius: '8px', border: '1px solid rgba(239,68,68,0.2)' }}>
+              {error}
+            </p>
+          )}
 
+          {/* Vendor Select */}
           <div>
-            <label className="block text-sm text-slate-300 mb-2">Vendor</label>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>
+              Vendor
+            </label>
             <select
               value={vendorId}
               onChange={(e) => setVendorId(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white"
+              className="input-base"
             >
               <option value="">Select vendor</option>
               {vendors.map((v) => (
@@ -95,26 +114,41 @@ export default function CreatePOModal({ vendors, onClose, onCreated }: Props) {
             </select>
           </div>
 
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">Line Items</h3>
-              <button onClick={addRow} className="text-sm text-violet-400 hover:text-violet-300">+ Add Row</button>
+          {/* Line Items */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h3 style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Line Items
+              </h3>
+              <button
+                onClick={addRow}
+                style={{ fontSize: '13px', color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}
+              >
+                + Add Row
+              </button>
+            </div>
+
+            {/* Column headers */}
+            <div style={{ display: 'grid', gridTemplateColumns: '6fr 2fr 3fr 1fr', gap: '10px' }}>
+              {['Description', 'Qty', 'Unit Price', ''].map((h) => (
+                <span key={h} style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</span>
+              ))}
             </div>
 
             {rows.map((row, index) => (
-              <div key={index} className="grid grid-cols-12 gap-3 items-center">
+              <div key={index} style={{ display: 'grid', gridTemplateColumns: '6fr 2fr 3fr 1fr', gap: '10px', alignItems: 'center' }}>
                 <input
                   value={row.description}
                   onChange={(e) => updateRow(index, { description: e.target.value })}
                   placeholder="Item description"
-                  className="col-span-6 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white"
+                  className="input-base"
                 />
                 <input
                   type="number"
                   min={1}
                   value={row.quantity}
                   onChange={(e) => updateRow(index, { quantity: Number(e.target.value) })}
-                  className="col-span-2 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white"
+                  className="input-base"
                 />
                 <input
                   type="number"
@@ -122,28 +156,35 @@ export default function CreatePOModal({ vendors, onClose, onCreated }: Props) {
                   step="0.01"
                   value={row.unitPrice}
                   onChange={(e) => updateRow(index, { unitPrice: Number(e.target.value) })}
-                  className="col-span-3 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-sm text-white"
+                  className="input-base"
                 />
                 <button
                   onClick={() => removeRow(index)}
                   disabled={rows.length === 1}
-                  className="col-span-1 text-red-400 disabled:opacity-40"
+                  style={{
+                    color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer',
+                    fontSize: '16px', opacity: rows.length === 1 ? 0.4 : 1
+                  }}
                 >
-                  âœ•
+                  ✕
                 </button>
               </div>
             ))}
           </div>
 
-          <div className="bg-white/3 border border-white/10 rounded-xl p-4 flex items-center justify-between">
-            <p className="text-sm text-slate-400">Total Amount</p>
-            <p className="text-xl font-bold text-white">â‚¹ {total.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</p>
+          {/* Total */}
+          <div className="card-sm" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Total Amount</p>
+            <p style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)' }}>
+              ₹ {total.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+            </p>
           </div>
 
-          <div className="flex gap-3 justify-end">
-            <button onClick={onClose} className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-slate-300">Cancel</button>
-            <button onClick={handleCreate} disabled={loading} className="px-4 py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-60 rounded-xl text-white font-semibold">
-              {loading ? 'Creating...' : 'Create PO'}
+          {/* Actions */}
+          <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+            <button onClick={onClose} className="btn-secondary">Cancel</button>
+            <button onClick={handleCreate} disabled={loading} className="btn-primary">
+              {loading ? 'Creating…' : 'Create PO'}
             </button>
           </div>
         </div>

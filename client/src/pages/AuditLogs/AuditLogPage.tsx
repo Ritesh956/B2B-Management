@@ -3,15 +3,22 @@ import { Link } from 'react-router-dom';
 import RoleGate from '../../components/RoleGate';
 import { Role } from '../../store/authStore';
 import { auditLogService, type AuditLogItem } from '../../services/auditLogs';
+import EmptyState from '../../components/EmptyState';
+import { TableSkeleton } from '../../components/Skeletons';
 
-const actionColor = (action: string): string => {
+const actionColor = (action: string): React.CSSProperties => {
   const normalized = action.toUpperCase();
-  if (normalized.includes('CREATE') || normalized.includes('SUBMIT')) return 'bg-emerald-500/20 text-emerald-300';
-  if (normalized.includes('APPROVE') || normalized.includes('VERIFY')) return 'bg-blue-500/20 text-blue-300';
-  if (normalized.includes('REJECT') || normalized.includes('TERMINATE')) return 'bg-red-500/20 text-red-300';
-  if (normalized.includes('UPDATE') || normalized.includes('STATUS')) return 'bg-amber-500/20 text-amber-300';
-  if (normalized.includes('PAY')) return 'bg-cyan-500/20 text-cyan-300';
-  return 'bg-slate-500/20 text-slate-300';
+  if (normalized.includes('CREATE') || normalized.includes('SUBMIT'))
+    return { background: 'rgba(16,185,129,0.15)', color: '#34d399', border: '1px solid rgba(16,185,129,0.3)' };
+  if (normalized.includes('APPROVE') || normalized.includes('VERIFY'))
+    return { background: 'rgba(59,130,246,0.15)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.3)' };
+  if (normalized.includes('REJECT') || normalized.includes('TERMINATE'))
+    return { background: 'rgba(239,68,68,0.15)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' };
+  if (normalized.includes('UPDATE') || normalized.includes('STATUS'))
+    return { background: 'rgba(245,158,11,0.15)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.3)' };
+  if (normalized.includes('PAY'))
+    return { background: 'rgba(6,182,212,0.15)', color: '#22d3ee', border: '1px solid rgba(6,182,212,0.3)' };
+  return { background: 'rgba(100,116,139,0.15)', color: 'var(--text-secondary)', border: '1px solid var(--border-dim)' };
 };
 
 const metadataText = (metadata: Record<string, unknown> | null): string => {
@@ -63,129 +70,145 @@ export default function AuditLogPage() {
 
   return (
     <RoleGate roles={[Role.ADMIN]}>
-      <div className="min-h-screen w-full max-w-full bg-slate-950 text-white">
-        <div className="border-b border-white/5 px-8 py-5 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+      <div className="page-root">
+        {/* Page Header */}
+        <div className="page-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
             <Link
               to="/dashboard"
-              className="inline-flex items-center gap-2 px-3 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-slate-300 hover:text-white hover:bg-white/10 transition"
+              className="btn-ghost"
+              style={{ fontSize: '12px', textDecoration: 'none' }}
             >
-              Back to Dashboard
+              &larr; Back to Dashboard
             </Link>
-
             <div>
-              <h1 className="text-2xl font-bold text-white">Audit Logs</h1>
-              <p className="text-slate-400 text-sm mt-0.5">Track all key actions across vendors, purchase orders, invoices, and contracts.</p>
+              <h1 className="page-title" style={{ marginBottom: '2px' }}>Audit Logs</h1>
+              <p className="page-subtitle" style={{ margin: 0 }}>Track all key actions across vendors, purchase orders, invoices, and contracts.</p>
             </div>
           </div>
-          <span className="text-sm text-slate-500">{logs.length} rows shown</span>
+          <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{logs.length} rows shown</span>
         </div>
 
-        <div className="px-8 py-4 border-b border-white/5">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
-            <div className="relative md:col-span-2">
-              <svg className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        {/* Filters */}
+        <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+          <div className="card-sm" style={{ display: 'flex', padding: '4px', flex: 1, minWidth: '300px' }}>
+            <div style={{ position: 'relative', flex: 1 }}>
+              <svg style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', width: '16px', height: '16px', color: 'var(--text-muted)' }}
+                fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search action/entity/id"
-                className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500 transition"
+                placeholder="Search action / entity / ID..."
+                className="input-base"
+                style={{ paddingLeft: '38px', width: '100%', border: 'none', background: 'transparent', boxShadow: 'none' }}
               />
             </div>
+            <div style={{ width: '1px', background: 'var(--border-dim)', margin: '4px 0' }} />
             <input
               value={entity}
               onChange={(e) => setEntity(e.target.value)}
-              placeholder="Entity (Vendor, Invoice...)"
-              className="bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500 transition"
+              placeholder="Entity type..."
+              className="input-base"
+              style={{ border: 'none', background: 'transparent', boxShadow: 'none', width: '140px' }}
             />
+            <div style={{ width: '1px', background: 'var(--border-dim)', margin: '4px 0' }} />
             <input
               value={userId}
               onChange={(e) => setUserId(e.target.value)}
-              placeholder="User ID"
-              className="bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500 transition"
+              placeholder="User ID..."
+              className="input-base"
+              style={{ border: 'none', background: 'transparent', boxShadow: 'none', width: '140px' }}
             />
-            <div>
-              <input
-                value={from}
-                onChange={(e) => setFrom(e.target.value)}
-                type="date"
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500 transition"
-              />
-            </div>
+            <div style={{ width: '1px', background: 'var(--border-dim)', margin: '4px 0' }} />
+            <input
+              value={from}
+              onChange={(e) => setFrom(e.target.value)}
+              type="date"
+              className="input-base"
+              style={{ border: 'none', background: 'transparent', boxShadow: 'none', width: '140px' }}
+            />
           </div>
         </div>
 
-        <div className="px-8 py-6">
-          <div className="bg-white/3 border border-white/5 rounded-2xl">
-            <table className="w-full table-fixed text-sm">
+        {/* Table */}
+        {loading ? (
+          <TableSkeleton rows={5} cols={6} />
+        ) : logs.length === 0 ? (
+          <EmptyState
+            title="No activity recorded yet"
+            description="Audit logs will appear here once actions are taken on vendors, purchase orders, invoices, or contracts."
+          />
+        ) : (
+          <div className="card" style={{ padding: 0, overflow: 'hidden', overflowX: 'auto' }}>
+            <table className="data-table" style={{ tableLayout: 'fixed', width: '100%' }}>
               <colgroup>
-                <col className="w-[20%]" />
-                <col className="w-[20%]" />
-                <col className="w-[10%]" />
-                <col className="w-[20%]" />
-                <col className="w-[30%]" />
+                <col style={{ width: '20%' }} />
+                <col style={{ width: '20%' }} />
+                <col style={{ width: '14%' }} />
+                <col style={{ width: '20%' }} />
+                <col style={{ width: '26%' }} />
               </colgroup>
               <thead>
-                <tr className="border-b border-white/5">
-                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Timestamp</th>
-                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">User</th>
-                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Action</th>
-                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Entity</th>
-                  <th className="px-5 py-3.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">What Changed</th>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>User</th>
+                  <th>Action</th>
+                  <th>Entity</th>
+                  <th>What Changed</th>
                 </tr>
               </thead>
               <tbody>
-                {loading ? (
-                  <tr>
-                    <td className="px-5 py-12 text-center text-slate-400" colSpan={5}>Loading audit logs...</td>
+                {logs.map((log) => (
+                  <tr key={log.id}>
+                    <td style={{ overflowWrap: 'anywhere' }}>{new Date(log.createdAt).toLocaleString()}</td>
+                    <td>
+                      <div style={{ color: 'var(--text-secondary)' }}>{log.user?.name || 'System'}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', wordBreak: 'break-all' }}>{log.user?.email || log.userId || '-'}</div>
+                    </td>
+                    <td>
+                      <span style={{
+                        display: 'inline-flex', alignItems: 'center',
+                        padding: '3px 10px', borderRadius: '999px',
+                        fontSize: '11px', fontWeight: 600,
+                        ...actionColor(log.action)
+                      }}>
+                        {log.action}
+                      </span>
+                    </td>
+                    <td style={{ overflowWrap: 'anywhere' }}>
+                      <div style={{ color: 'var(--text-secondary)' }}>{log.entity}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)', wordBreak: 'break-all' }}>{log.entityId}</div>
+                    </td>
+                    <td style={{ fontSize: '11px', color: 'var(--text-muted)', wordBreak: 'break-all' }}>{metadataText(log.metadata)}</td>
                   </tr>
-                ) : logs.length === 0 ? (
-                  <tr>
-                    <td className="px-5 py-12 text-center text-slate-400" colSpan={5}>No audit logs found.</td>
-                  </tr>
-                ) : (
-                  logs.map((log) => (
-                    <tr key={log.id} className="border-b border-white/5 hover:bg-white/5 transition">
-                      <td className="px-5 py-4 text-slate-300 break-words">{new Date(log.createdAt).toLocaleString()}</td>
-                      <td className="px-5 py-4 text-slate-300">
-                        <div>{log.user?.name || 'System'}</div>
-                        <div className="text-xs text-slate-500 break-all">{log.user?.email || log.userId || '-'}</div>
-                      </td>
-                      <td className="px-5 py-4">
-                        <span className={`rounded-full px-2.5 py-1 text-xs font-medium border border-white/10 ${actionColor(log.action)}`}>{log.action}</span>
-                      </td>
-                      <td className="px-5 py-4 text-slate-300 break-words">
-                        <div>{log.entity}</div>
-                        <div className="text-xs text-slate-500 break-all">{log.entityId}</div>
-                      </td>
-                      <td className="px-5 py-4 text-xs text-slate-300 break-all">{metadataText(log.metadata)}</td>
-                    </tr>
-                  ))
-                )}
+                ))}
               </tbody>
             </table>
           </div>
+        )}
 
-          <div className="mt-6 flex items-center justify-between">
-            <p className="text-sm text-slate-500">Page {page} of {pages}</p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => loadLogs(Math.max(1, page - 1))}
-                disabled={page <= 1}
-                className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-slate-300 hover:text-white disabled:opacity-40 transition"
-              >
-                Prev
-              </button>
-              <button
-                onClick={() => loadLogs(Math.min(pages, page + 1))}
-                disabled={page >= pages}
-                className="px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm text-slate-300 hover:text-white disabled:opacity-40 transition"
-              >
-                Next
-              </button>
-            </div>
+        {/* Pagination */}
+        <div style={{ marginTop: '24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Page {page} of {pages}</p>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => loadLogs(Math.max(1, page - 1))}
+              disabled={page <= 1}
+              className="btn-secondary"
+              style={{ opacity: page <= 1 ? 0.4 : 1 }}
+            >
+              Prev
+            </button>
+            <button
+              onClick={() => loadLogs(Math.min(pages, page + 1))}
+              disabled={page >= pages}
+              className="btn-secondary"
+              style={{ opacity: page >= pages ? 0.4 : 1 }}
+            >
+              Next
+            </button>
           </div>
         </div>
       </div>

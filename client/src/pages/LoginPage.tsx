@@ -1,33 +1,53 @@
-import { useForm } from 'react-hook-form';
-import { DevTool } from '@hookform/devtools';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { useNavigate, Link } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 
 const schema = z.object({
   email: z.string().email('Enter a valid email'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
 });
-
 type FormData = z.infer<typeof schema>;
+
+const DEMO_ACCOUNTS = [
+  { label: 'Admin',       role: 'Full Access',    email: 'admin@demo.com',   password: 'Admin123', color: '#8b5cf6' },
+  { label: 'Finance',     role: 'Finance Module', email: 'finance@demo.com', password: 'Fin123',   color: '#3b82f6' },
+  { label: 'Procurement', role: 'PO & Vendors',   email: 'procure@demo.com', password: 'Proc123',  color: '#10b981' },
+  { label: 'Vendor',      role: 'Vendor Portal',  email: 'vendor@demo.com',  password: 'Vend123',  color: '#ec4899' },
+];
+
+const FEATURES = [
+  { icon: '⚡', text: 'Real-time vendor status & performance tracking' },
+  { icon: '📊', text: 'Invoice matching & approval workflows' },
+  { icon: '🔒', text: 'Role-based access with audit logging' },
+  { icon: '📋', text: 'Contract expiry alerts & PO management' },
+];
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const login = useAuthStore((s) => s.login);
+  const [showPassword, setShowPassword] = useState(false);
+  const [hoveredAccount, setHoveredAccount] = useState<string | null>(null);
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-    setError,
-    control,
-  } = useForm<FormData>({ resolver: zodResolver(schema) });
+  const { register, handleSubmit, formState: { errors, isSubmitting }, setError, setValue } = useForm<FormData>({ resolver: zodResolver(schema) });
+
+  const fillDemoAccount = (email: string, password: string) => {
+    setValue('email', email, { shouldDirty: true, shouldValidate: true });
+    setValue('password', password, { shouldDirty: true, shouldValidate: true });
+  };
 
   const onSubmit = async (data: FormData) => {
     try {
-      await login(data.email, data.password);
-      navigate('/dashboard');
+      const res = await login(data.email, data.password);
+      if (res?.requiresOtp && res.tempToken) {
+        sessionStorage.setItem('tempToken', res.tempToken);
+        navigate('/verify-otp');
+      } else {
+        const currentUser = useAuthStore.getState().user;
+        navigate(currentUser?.role === 'VENDOR' ? '/vendor/dashboard' : '/dashboard');
+      }
     } catch (err: any) {
       const msg = err?.response?.data?.error || 'Login failed. Please try again.';
       setError('root', { message: msg });
@@ -35,80 +55,170 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-slate-900 via-purple-950 to-slate-900">
-      <div className="w-full max-w-md">
-        {/* Logo / Heading */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-linear-to-br from-violet-500 to-purple-600 shadow-lg mb-4">
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+    <div style={{
+      minHeight: '100vh',
+      background: 'var(--bg-base)',
+      backgroundImage: 'radial-gradient(ellipse at 20% 20%, rgba(99,102,241,0.12) 0%, transparent 50%), radial-gradient(ellipse at 80% 80%, rgba(6,182,212,0.08) 0%, transparent 50%)',
+      display: 'flex',
+      fontFamily: 'var(--font-sans)',
+    }}>
+      {/* ─── Left panel ──────────────────────────────── */}
+      <div style={{
+        flex: '0 0 460px',
+        background: 'var(--bg-surface)',
+        borderRight: '1px solid var(--border-dim)',
+        padding: '48px 44px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 0,
+      }} className="hidden-mobile">
+        {/* Logo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 48 }}>
+          <div style={{
+            width: 44, height: 44, borderRadius: 13,
+            background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 6px 20px rgba(99,102,241,0.4)',
+          }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
             </svg>
           </div>
-          <h1 className="text-3xl font-bold text-white">VendorHub</h1>
-          <p className="text-slate-400 mt-1">Sign in to your account</p>
+          <div>
+            <div style={{ fontSize: 19, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.03em' }}>VendorHub</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500, letterSpacing: '0.05em', textTransform: 'uppercase' }}>B2B Management Platform</div>
+          </div>
         </div>
 
-        {/* Card */}
-        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-8 shadow-2xl">
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+        <div style={{ marginBottom: 36 }}>
+          <h2 style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.03em', margin: '0 0 12px' }}>
+            Streamline your <br />
+            <span style={{ background: 'linear-gradient(135deg, #a5b4fc, #67e8f9)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>vendor operations</span>
+          </h2>
+          <p style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.7, margin: 0 }}>
+            One platform for PO approvals, invoice matching, contract management and vendor analytics.
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 40 }}>
+          {FEATURES.map(({ icon, text }) => (
+            <div key={text} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '12px 14px', background: 'var(--bg-card)', border: '1px solid var(--border-dim)', borderRadius: 11 }}>
+              <span style={{ fontSize: 16, flexShrink: 0 }}>{icon}</span>
+              <span style={{ fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.5 }}>{text}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Demo accounts */}
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+            Quick Login — Demo Accounts
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {DEMO_ACCOUNTS.map((acc) => (
+              <button
+                key={acc.email}
+                type="button"
+                onClick={() => fillDemoAccount(acc.email, acc.password)}
+                onMouseEnter={() => setHoveredAccount(acc.email)}
+                onMouseLeave={() => setHoveredAccount(null)}
+                style={{
+                  padding: '11px 13px',
+                  background: hoveredAccount === acc.email ? `${acc.color}12` : 'var(--bg-card)',
+                  border: `1px solid ${hoveredAccount === acc.email ? `${acc.color}35` : 'var(--border-dim)'}`,
+                  borderRadius: 10,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 180ms',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 7, background: `${acc.color}18`, border: `1px solid ${acc.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, color: acc.color }}>
+                    {acc.label[0]}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{acc.label}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{acc.role}</div>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ─── Right panel (Form) ───────────────────────── */}
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 24px' }}>
+        <div style={{ width: '100%', maxWidth: 420 }} className="animate-in">
+          <div style={{ marginBottom: 32 }}>
+            <h1 style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.03em', margin: '0 0 8px' }}>Welcome back</h1>
+            <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: 0 }}>Sign in to your VendorHub workspace</p>
+          </div>
+
+          <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             {errors.root && (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-4 py-3">
-                <p className="text-red-400 text-sm">{errors.root.message}</p>
+              <div style={{ padding: '12px 16px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 10, fontSize: 13.5, color: '#f87171' }}>
+                {errors.root.message}
               </div>
             )}
 
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">Email address</label>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>Email address</label>
               <input
                 {...register('email')}
                 type="email"
                 autoComplete="email"
-                placeholder="you@company.com"
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
+                placeholder="admin@demo.com"
+                className="input-base"
               />
-              {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email.message}</p>}
+              {errors.email && <p style={{ fontSize: 12, color: '#f87171', marginTop: 5 }}>{errors.email.message}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">Password</label>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>Password</label>
+                <button type="button" onClick={() => setShowPassword(v => !v)} style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent-primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
               <input
                 {...register('password')}
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 autoComplete="current-password"
-                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition"
+                placeholder="••••••••"
+                className="input-base"
               />
-              {errors.password && <p className="text-red-400 text-xs mt-1">{errors.password.message}</p>}
+              {errors.password && <p style={{ fontSize: 12, color: '#f87171', marginTop: 5 }}>{errors.password.message}</p>}
             </div>
 
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full py-3 px-4 bg-linear-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 disabled:opacity-60 text-white font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-violet-500/25 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:ring-offset-2 focus:ring-offset-slate-900"
-            >
+            <button type="submit" disabled={isSubmitting} className="btn-primary" style={{ padding: '13px', fontSize: 15, marginTop: 4 }}>
               {isSubmitting ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <svg style={{ width: 16, height: 16, animation: 'spin 0.8s linear infinite' }} viewBox="0 0 24 24" fill="none">
+                    <circle style={{ opacity: 0.25 }} cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path style={{ opacity: 0.75 }} fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
                   </svg>
-                  Signing inâ€¦
+                  Signing in…
                 </span>
-              ) : (
-                'Sign In'
-              )}
+              ) : 'Sign In'}
             </button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-slate-400">
+          <div style={{ marginTop: 28, padding: '14px 18px', background: 'var(--bg-card)', border: '1px solid var(--border-dim)', borderRadius: 11 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>Default demo access</div>
+            <div style={{ fontSize: 13.5, color: 'var(--text-secondary)' }}>
+              <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>admin@demo.com</span>
+              {' / '}
+              <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Admin123</span>
+            </div>
+          </div>
+
+          <p style={{ textAlign: 'center', marginTop: 22, fontSize: 13.5, color: 'var(--text-muted)' }}>
             Don&apos;t have an account?{' '}
-            <Link to="/register" className="text-violet-400 hover:text-violet-300 font-medium transition">
-              Register here
-            </Link>
+            <Link to="/register" style={{ color: 'var(--accent-primary)', fontWeight: 600 }}>Register here</Link>
           </p>
         </div>
       </div>
-      {import.meta.env.DEV ? <DevTool control={control} /> : null}
     </div>
   );
 }

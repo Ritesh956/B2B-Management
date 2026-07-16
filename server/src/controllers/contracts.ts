@@ -57,7 +57,7 @@ export const createContract = async (req: AuthRequest, res: Response): Promise<v
 
 export const listContracts = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { status, searchVendor, expiringSoon, page = '1', limit = '20' } = req.query as Record<string, string>;
+    const { status, searchVendor, expiringSoon, filter, page = '1', limit = '20' } = req.query as Record<string, string>;
     const pageNum = Math.max(1, parseInt(page));
     const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
     const skip = (pageNum - 1) * limitNum;
@@ -80,12 +80,17 @@ export const listContracts = async (req: AuthRequest, res: Response): Promise<vo
       };
     }
 
-    if (expiringSoon === 'true' || expiringSoon === '1') {
+    if (filter === 'expiring' || expiringSoon === 'true' || expiringSoon === '1') {
       where.status = ContractStatus.ACTIVE;
       where.endDate = { gte: now, lte: thirtyDays };
+    } else if (filter === 'expired') {
+      where.endDate = { lt: now };
+    } else if (filter === 'active') {
+      where.status = ContractStatus.ACTIVE;
+      where.endDate = { gte: now };
     }
 
-    const orderBy = expiringSoon === 'true' || expiringSoon === '1'
+    const orderBy = (filter === 'expiring' || expiringSoon === 'true' || expiringSoon === '1')
       ? { endDate: 'asc' as const }
       : { createdAt: 'desc' as const };
 

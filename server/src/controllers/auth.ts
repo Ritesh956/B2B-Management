@@ -2,8 +2,17 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { Role } from '@prisma/client';
-import { prisma } from '../config/prisma.js';
 import { AuthRequest } from '../middlewares/authenticate.js';
+import { createClient } from 'redis';
+import { enqueueEmail } from '../queues/index.js';
+import { prisma } from '../config/prisma';
+
+const otpStore = new Map<string, string>();
+const redisClient = {
+  setEx: async (key: string, _ttl: number, value: string) => { otpStore.set(key, value); },
+  get: async (key: string) => otpStore.get(key) ?? null,
+  del: async (key: string) => { otpStore.delete(key); },
+};
 
 // ─── POST /api/auth/register ──────────────────────────────────────────────────
 export const register = async (req: Request, res: Response): Promise<void> => {
@@ -79,6 +88,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
 
     const user = await prisma.user.findUnique({ where: { email } });
+
     if (!user) {
       res.status(401).json({ error: 'Invalid credentials' });
       return;
@@ -89,6 +99,37 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       res.status(401).json({ error: 'Invalid credentials' });
       return;
     }
+
+    if (!user.isActive) {
+      res.status(403).json({ error: 'Account is deactivated' });
+      return;
+    }
+
+    if (user.isTwoFactorEnabled) {
+      const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6 digits
+      await redisClient.setEx(`otp:${user.id}`, 300, otp);
+
+      await enqueueEmail({
+        to: user.email,
+        subject: 'Your Login OTP',
+        html: `<p>Your One-Time Password is: <strong>${otp}</strong></p><p>It is valid for 5 minutes.</p>`,
+      });
+
+      const secret = process.env.JWT_SECRET || 'secret';
+      const tempToken = jwt.sign(
+        { userId: user.id, is2faPending: true },
+        secret,
+        { expiresIn: '5m' }
+      );
+
+      res.status(200).json({ requiresOtp: true, tempToken });
+      return;
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLogin: new Date() },
+    });
 
     const secret = process.env.JWT_SECRET || 'secret';
     const token = jwt.sign(
@@ -101,6 +142,97 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   } catch (err) {
     console.error('[login]', err);
     res.status(500).json({ error: 'Internal server error during login' });
+  }
+};
+
+// ─── POST /api/auth/verify-otp ────────────────────────────────────────────────
+export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { otp } = req.body as { otp: string };
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.status(401).json({ error: 'Missing temp token' });
+      return;
+    }
+    const tempToken = authHeader.split(' ')[1];
+
+    if (!otp) {
+      res.status(400).json({ error: 'OTP is required' });
+      return;
+    }
+
+    const secret = process.env.JWT_SECRET || 'secret';
+    const decoded = jwt.verify(tempToken, secret) as { userId: string; is2faPending?: boolean };
+
+    if (!decoded.is2faPending) {
+      res.status(400).json({ error: 'Invalid token type for OTP verification' });
+      return;
+    }
+
+    const storedOtp = await redisClient.get(`otp:${decoded.userId}`);
+    if (!storedOtp) {
+      res.status(400).json({ error: 'OTP expired or invalid' });
+      return;
+    }
+
+    if (storedOtp !== otp) {
+      res.status(400).json({ error: 'Invalid OTP' });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+    if (!user || !user.isActive) {
+      res.status(401).json({ error: 'User is deactivated or not found' });
+      return;
+    }
+
+    await redisClient.del(`otp:${decoded.userId}`);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLogin: new Date() },
+    });
+
+    const token = jwt.sign(
+      { userId: user.id, role: user.role, companyId: user.companyId },
+      secret,
+      { expiresIn: '7d' }
+    );
+
+    res.status(200).json({ message: 'Login successful', token });
+  } catch (err) {
+    console.error('[verifyOtp]', err);
+    res.status(401).json({ error: 'Invalid or expired temporary token' });
+  }
+};
+
+// ─── PATCH /api/auth/2fa/toggle ──────────────────────────────────────────────
+export const toggle2fa = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Not authenticated' });
+      return;
+    }
+
+    const { isTwoFactorEnabled } = req.body as { isTwoFactorEnabled: boolean };
+
+    const updatedUser = await prisma.user.update({
+      where: { id: req.user.id },
+      data: { isTwoFactorEnabled },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isTwoFactorEnabled: true,
+      },
+    });
+
+    res.status(200).json({ user: updatedUser });
+  } catch (err) {
+    console.error('[toggle2fa]', err);
+    res.status(500).json({ error: 'Failed to toggle 2FA' });
   }
 };
 

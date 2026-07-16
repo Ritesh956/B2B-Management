@@ -6,6 +6,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { Toaster } from 'sonner'
 import './index.css'
 import App from './App.tsx'
+import GlobalErrorBoundary from './components/GlobalErrorBoundary'
 
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN,
@@ -26,9 +27,11 @@ const queryClient = new QueryClient({
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      <GlobalErrorBoundary>
+        <App />
+      </GlobalErrorBoundary>
       <Toaster richColors position="top-right" />
-      <ReactQueryDevtools initialIsOpen={false} />
+      {import.meta.env.DEV && import.meta.env.VITE_SHOW_QUERY_DEVTOOLS === 'true' ? <ReactQueryDevtools initialIsOpen={false} /> : null}
     </QueryClientProvider>
   </StrictMode>,
 )

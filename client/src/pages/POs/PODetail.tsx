@@ -3,58 +3,139 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import ApprovalActions from '../../components/ApprovalActions';
 import { type PurchaseOrder } from '../../services/pos';
 import { usePOQuery } from '../../hooks/usePOQuery';
+import ActivityFeed from '../../components/ActivityFeed';
+import { DetailPageSkeleton } from '../../components/Skeletons';
 
-const STATUS_STYLE: Record<string, string> = {
-  PENDING_APPROVAL: 'bg-amber-500/15 text-amber-400 border border-amber-500/30',
-  APPROVED: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30',
-  REJECTED: 'bg-red-500/15 text-red-400 border border-red-500/30',
-  DRAFT: 'bg-slate-500/20 text-slate-300 border border-slate-500/30',
-  CLOSED: 'bg-slate-500/20 text-slate-300 border border-slate-500/30',
-};
-
-const getApprovedAt = (po: PurchaseOrder): string | null => {
-  const approvedStep = [...po.approvalSteps].reverse().find((step) => step.status === 'APPROVED');
-  return approvedStep?.approvedAt ?? null;
-};
-
-const getTimeline = (po: PurchaseOrder) => {
+const HorizontalTimeline = ({ po }: { po: PurchaseOrder }) => {
   const latestInvoice = po.invoices?.[0] ?? null;
+
   const approved = po.status === 'APPROVED' || po.status === 'CLOSED';
+  const rejected = po.status === 'REJECTED';
+  const invoiceExists = Boolean(latestInvoice);
+
   const matched = Boolean(latestInvoice && ['MATCHED', 'APPROVED', 'PAID'].includes(latestInvoice.status));
+  const mismatched = Boolean(latestInvoice && latestInvoice.status === 'MISMATCHED');
+
   const paid = Boolean(latestInvoice && latestInvoice.status === 'PAID');
 
-  return [
+  const approvedStep = [...po.approvalSteps].reverse().find((step) => step.status === 'APPROVED');
+  const approvalDate = approvedStep?.approvedAt ? new Date(approvedStep.approvedAt).toLocaleDateString('en-IN') : null;
+  const rejectionDate = po.rejectedAt ? new Date(po.rejectedAt).toLocaleDateString('en-IN') : null;
+
+  const invoiceSubmittedDate = latestInvoice?.submittedAt ? new Date(latestInvoice.submittedAt).toLocaleDateString('en-IN') : null;
+  const invoicePaidDate = latestInvoice?.paidAt ? new Date(latestInvoice.paidAt).toLocaleDateString('en-IN') : null;
+
+  const stages = [
     {
-      title: 'PO Created',
-      completed: true,
-      current: false,
-      meta: new Date(po.createdAt).toLocaleDateString('en-IN'),
+      label: 'PO Created',
+      date: new Date(po.createdAt).toLocaleDateString('en-IN'),
+      state: 'completed',
     },
     {
-      title: 'Approved',
-      completed: approved,
-      current: !approved,
-      meta: approved ? (getApprovedAt(po) ? new Date(getApprovedAt(po)!).toLocaleDateString('en-IN') : 'Approved') : 'Pending approval',
+      label: 'Approved',
+      date: rejected ? (rejectionDate ? `Rejected on ${rejectionDate}` : 'Rejected') : (approved ? (approvalDate ?? 'Approved') : 'Pending Approval'),
+      state: rejected ? 'rejected' : (approved ? 'completed' : 'current'),
     },
     {
-      title: 'Invoice Submitted',
-      completed: Boolean(latestInvoice),
-      current: approved && !latestInvoice,
-      meta: latestInvoice ? new Date(latestInvoice.submittedAt).toLocaleDateString('en-IN') : 'Waiting for invoice',
+      label: 'Invoice Submitted',
+      date: invoiceSubmittedDate ?? (rejected ? 'PO Rejected' : 'Waiting for invoice'),
+      state: invoiceExists ? 'completed' : (approved && !rejected ? 'current' : 'pending'),
     },
     {
-      title: 'Matched',
-      completed: matched,
-      current: Boolean(latestInvoice) && !matched,
-      meta: latestInvoice ? latestInvoice.status : 'Waiting for invoice',
+      label: 'Invoice Matched',
+      date: mismatched ? 'Mismatch' : (matched ? (invoiceSubmittedDate ?? 'Matched') : 'Waiting for invoice'),
+      state: mismatched ? 'rejected' : (matched ? 'completed' : (invoiceExists && !mismatched ? 'current' : 'pending')),
     },
     {
-      title: 'Paid',
-      completed: paid,
-      current: matched && !paid,
-      meta: paid ? 'Paid' : 'Awaiting payment',
+      label: 'Payment Made',
+      date: paid ? (invoicePaidDate ?? 'Paid') : 'Awaiting payment',
+      state: paid ? 'completed' : (matched ? 'current' : 'pending'),
     },
   ];
+
+  const completedCount = stages.filter((s) => s.state === 'completed').length;
+  const progressPercents: Record<number, string> = { 5: '80%', 4: '60%', 3: '40%', 2: '20%', 1: '0%', 0: '0%' };
+  const progressWidth = progressPercents[completedCount] ?? '0%';
+
+  return (
+    <div className="card">
+      <h2 style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '24px' }}>
+        PO Lifecycle Timeline
+      </h2>
+      <div style={{ position: 'relative', padding: '16px 8px' }}>
+        {/* Track */}
+        <div style={{
+          position: 'absolute', left: '10%', right: '10%', top: '34px',
+          height: '3px', background: 'var(--border-dim)', borderRadius: '9999px', zIndex: 0
+        }} />
+        {/* Progress fill */}
+        <div style={{
+          position: 'absolute', left: '10%', top: '34px',
+          height: '3px', width: progressWidth,
+          background: 'linear-gradient(to right, #10b981, #06b6d4)',
+          borderRadius: '9999px', zIndex: 0, transition: 'width 0.5s ease'
+        }} />
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%' }}>
+          {stages.map((stage) => {
+            let circleStyle: React.CSSProperties = {
+              background: 'var(--bg-card)',
+              border: '2px solid var(--border-dim)',
+              color: 'var(--text-muted)',
+            };
+            let icon: React.ReactNode = <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: 'var(--border-dim)' }} />;
+
+            if (stage.state === 'completed') {
+              circleStyle = { background: '#10b981', border: '2px solid #34d399', boxShadow: '0 0 15px rgba(16,185,129,0.3)' };
+              icon = (
+                <svg style={{ width: '20px', height: '20px', color: '#fff' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3.5} d="M5 13l4 4L19 7" />
+                </svg>
+              );
+            } else if (stage.state === 'current') {
+              circleStyle = { background: '#2563eb', border: '2px solid #60a5fa', boxShadow: '0 0 15px rgba(37,99,235,0.4)' };
+              icon = (
+                <span style={{ position: 'relative', display: 'flex', width: '14px', height: '14px' }}>
+                  <span style={{ position: 'absolute', display: 'inline-flex', width: '100%', height: '100%', borderRadius: '50%', background: '#bfdbfe', opacity: 0.75, animation: 'ping 1s cubic-bezier(0,0,0.2,1) infinite' }} />
+                  <span style={{ position: 'relative', display: 'inline-flex', borderRadius: '50%', width: '14px', height: '14px', background: '#fff' }} />
+                </span>
+              );
+            } else if (stage.state === 'rejected') {
+              circleStyle = { background: '#f43f5e', border: '2px solid #fb7185', boxShadow: '0 0 15px rgba(244,63,94,0.3)' };
+              icon = (
+                <svg style={{ width: '20px', height: '20px', color: '#fff' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3.5} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              );
+            }
+
+            return (
+              <div key={stage.label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, minWidth: 0 }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: '48px', height: '48px', borderRadius: '50%',
+                  position: 'relative', zIndex: 10, transition: 'all 0.3s',
+                  ...circleStyle
+                }}>
+                  {icon}
+                </div>
+                <p style={{
+                  marginTop: '12px', fontSize: '11px', fontWeight: 600, textAlign: 'center',
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%',
+                  color: stage.state === 'pending' ? 'var(--text-muted)' : 'var(--text-primary)'
+                }}>
+                  {stage.label}
+                </p>
+                <p style={{ marginTop: '4px', fontSize: '10px', color: 'var(--text-muted)', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%', padding: '0 4px' }}>
+                  {stage.date}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default function PODetail() {
@@ -67,139 +148,148 @@ export default function PODetail() {
     if (data?.po) setPO(data.po);
   }, [data]);
 
-  if (isLoading && !po) {
-    return <div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-8 h-8 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" /></div>;
-  }
+  if (isLoading && !po) return <DetailPageSkeleton />;
 
   if (error || !po) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-400 text-lg font-semibold">{error instanceof Error ? error.message : 'PO not found'}</p>
-          <button onClick={() => navigate('/pos')} className="mt-4 text-violet-400 hover:text-violet-300 text-sm">&lt;- Back to POs</button>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-base)' }}>
+        <div className="card" style={{ textAlign: 'center', maxWidth: '400px' }}>
+          <p style={{ fontSize: '15px', fontWeight: 600, color: '#ef4444' }}>
+            {error instanceof Error ? error.message : 'PO not found'}
+          </p>
+          <button onClick={() => navigate('/pos')} className="btn-ghost" style={{ marginTop: '16px' }}>
+            ← Back to POs
+          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      <div className="border-b border-white/5 px-8 py-5 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link to="/pos" className="text-slate-400 hover:text-white">&lt;-</Link>
-          <div>
-            <h1 className="text-2xl font-bold">{po.poNumber}</h1>
-            <p className="text-slate-400 text-sm">Vendor: {po.vendor.companyName}</p>
+    <div className="page-root">
+      {/* Header */}
+      <div className="surface" style={{ padding: '24px 32px', borderRadius: '16px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <Link to="/pos" className="btn-ghost" style={{ padding: '8px 12px', textDecoration: 'none', fontSize: '16px' }}>←</Link>
+            <div>
+              <h1 className="page-title" style={{ margin: 0 }}>{po.poNumber}</h1>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                Vendor: {po.vendor.companyName}
+              </p>
+            </div>
           </div>
+          <span className={`badge badge-${po.status.toLowerCase()}`}>{po.status}</span>
         </div>
-        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${STATUS_STYLE[po.status] || STATUS_STYLE.DRAFT}`}>{po.status}</span>
       </div>
 
-      <div className="px-8 py-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white/3 border border-white/5 rounded-2xl p-6">
-            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">PO to Invoice to Payment Timeline</h2>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
-              {getTimeline(po).map((step, index) => (
-                <div
-                  key={step.title}
-                  className={`rounded-xl border p-4 ${step.completed ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200' : step.current ? 'border-amber-400/30 bg-amber-500/10 text-amber-200' : 'border-white/10 bg-white/5 text-slate-400'}`}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className={`flex h-8 w-8 items-center justify-center rounded-full border text-xs font-semibold ${step.completed ? 'border-emerald-400/30 bg-emerald-500/20 text-emerald-200' : step.current ? 'border-amber-400/30 bg-amber-500/20 text-amber-100' : 'border-white/10 bg-white/5 text-slate-400'}`}>
-                      {index + 1}
-                    </div>
-                    <span className="text-[10px] uppercase tracking-wider">{step.completed ? 'Done' : step.current ? 'Current' : 'Pending'}</span>
-                  </div>
-                  <p className="mt-3 text-sm font-semibold text-white">{step.title}</p>
-                  <p className="mt-1 text-xs text-slate-400">{step.meta}</p>
-                </div>
-              ))}
-            </div>
-            {po.invoices?.[0] && (
-              <p className="mt-4 text-xs text-slate-500">
-                Latest invoice {po.invoices[0].invoiceNumber} is {po.invoices[0].status.toLowerCase()} for Rs. {po.invoices[0].amount.toLocaleString('en-IN')}.
-              </p>
-            )}
-          </div>
-
-          <div className="bg-white/3 border border-white/5 rounded-2xl p-6">
-            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Line Items</h2>
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-white/5">
-                  {['Description', 'Qty', 'Unit Price', 'Line Total'].map((h) => (
-                    <th key={h} className="text-left py-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {po.items.map((item, index) => (
-                  <tr key={index} className="border-b border-white/5">
-                    <td className="py-3 text-white">{item.description}</td>
-                    <td className="py-3 text-slate-300">{item.quantity}</td>
-                    <td className="py-3 text-slate-300">Rs. {item.unitPrice.toLocaleString('en-IN')}</td>
-                    <td className="py-3 text-slate-300">Rs. {item.lineTotal.toLocaleString('en-IN')}</td>
+      {/* Main grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px', alignItems: 'start' }}>
+          {/* Left column */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            {/* Line Items */}
+            <div className="card">
+              <h2 style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '16px' }}>
+                Line Items
+              </h2>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    {['Description', 'Qty', 'Unit Price', 'Line Total'].map((h) => (
+                      <th key={h}>{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            <div className="mt-4 text-right">
-              <p className="text-slate-400 text-sm">Total</p>
-              <p className="text-xl font-bold">Rs. {po.totalAmount.toLocaleString('en-IN')}</p>
+                </thead>
+                <tbody>
+                  {po.items.map((item, index) => (
+                    <tr key={index}>
+                      <td style={{ color: 'var(--text-primary)' }}>{item.description}</td>
+                      <td>{item.quantity}</td>
+                      <td>Rs. {item.unitPrice.toLocaleString('en-IN')}</td>
+                      <td>Rs. {item.lineTotal.toLocaleString('en-IN')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div style={{ marginTop: '16px', textAlign: 'right' }}>
+                <p style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Total</p>
+                <p style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)' }}>
+                  Rs. {po.totalAmount.toLocaleString('en-IN')}
+                </p>
+              </div>
             </div>
-          </div>
 
-          <div className="bg-white/3 border border-white/5 rounded-2xl p-6">
-            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Approval Chain Progress</h2>
-            <div className="space-y-3">
-              {po.approvalSteps.map((step) => (
-                <div key={step.step} className="flex items-center gap-3">
-                  <div className={`w-3 h-3 rounded-full ${step.status === 'APPROVED' ? 'bg-emerald-400' : step.status === 'REJECTED' ? 'bg-red-400' : step.isCurrent ? 'bg-amber-400' : 'bg-slate-600'}`} />
-                  <div className="flex-1">
-                    <p className="text-sm text-white">{step.role}</p>
-                    <p className="text-xs text-slate-500">{step.status}{step.isCurrent ? ' - Current approver' : ''}</p>
+            {/* Timeline */}
+            <HorizontalTimeline po={po} />
+
+            {/* Approval Chain */}
+            <div className="card">
+              <h2 style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '16px' }}>
+                Approval Chain Progress
+              </h2>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {po.approvalSteps.map((step) => (
+                  <div key={step.step} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{
+                      width: '10px', height: '10px', borderRadius: '50%', flexShrink: 0,
+                      background: step.status === 'APPROVED' ? '#10b981'
+                        : step.status === 'REJECTED' ? '#ef4444'
+                        : step.isCurrent ? '#f59e0b'
+                        : 'var(--border-dim)'
+                    }} />
+                    <div style={{ flex: 1 }}>
+                      <p style={{ fontSize: '13px', color: 'var(--text-primary)' }}>{step.role}</p>
+                      <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                        {step.status}{step.isCurrent ? ' — Current approver' : ''}
+                      </p>
+                    </div>
+                    {step.approvedAt && (
+                      <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                        {new Date(step.approvedAt).toLocaleString('en-IN')}
+                      </p>
+                    )}
                   </div>
-                  {step.approvedAt && (
-                    <p className="text-xs text-slate-500">{new Date(step.approvedAt).toLocaleString('en-IN')}</p>
-                  )}
+                ))}
+              </div>
+
+              {po.rejectionReason && (
+                <div style={{ marginTop: '16px', padding: '12px', borderRadius: '8px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}>
+                  <p style={{ fontSize: '11px', color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Rejection Reason</p>
+                  <p style={{ fontSize: '13px', color: '#fca5a5', marginTop: '4px' }}>{po.rejectionReason}</p>
                 </div>
-              ))}
-            </div>
-
-            {po.rejectionReason && (
-              <div className="mt-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30">
-                <p className="text-xs text-red-300 uppercase tracking-wider">Rejection Reason</p>
-                <p className="text-sm text-red-200 mt-1">{po.rejectionReason}</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="space-y-6">
-          <div className="bg-white/3 border border-white/5 rounded-2xl p-6">
-            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Summary</h2>
-            <div className="space-y-3 text-sm">
-              <div>
-                <p className="text-slate-500">Created By</p>
-                <p className="text-white">{po.createdBy.name} ({po.createdBy.role})</p>
-              </div>
-              <div>
-                <p className="text-slate-500">Vendor Email</p>
-                <p className="text-white">{po.vendor.email}</p>
-              </div>
-              <div>
-                <p className="text-slate-500">Created At</p>
-                <p className="text-white">{new Date(po.createdAt).toLocaleString('en-IN')}</p>
-              </div>
-              <div>
-                <p className="text-slate-500">Current Approver</p>
-                <p className="text-white">{po.currentApproverRole ?? '-'}</p>
-              </div>
+              )}
             </div>
           </div>
 
-          <ApprovalActions po={po} onUpdated={setPO} />
+          {/* Right column */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            {/* Summary */}
+            <div className="card">
+              <h2 style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '16px' }}>
+                Summary
+              </h2>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {[
+                  { label: 'Created By', value: `${po.createdBy.name} (${po.createdBy.role})` },
+                  { label: 'Vendor Email', value: po.vendor.email },
+                  { label: 'Created At', value: new Date(po.createdAt).toLocaleString('en-IN') },
+                  { label: 'Current Approver', value: po.currentApproverRole ?? '-' },
+                ].map(({ label, value }) => (
+                  <div key={label}>
+                    <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{label}</p>
+                    <p style={{ fontSize: '13px', color: 'var(--text-primary)', marginTop: '2px' }}>{value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <ApprovalActions po={po} onUpdated={setPO} />
+
+            <div style={{ height: '384px' }}>
+              <ActivityFeed entity="PurchaseOrder" entityId={id!} />
+            </div>
+          </div>
         </div>
       </div>
     </div>

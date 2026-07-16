@@ -15,7 +15,41 @@ function makePrisma() {
 
   const adapter = new PrismaPg({ connectionString });
 
-  return new PrismaClient({ adapter });
+  const baseClient = new PrismaClient({ adapter });
+
+  const client = baseClient.$extends({
+    query: {
+      $allModels: {
+        async findMany({ model, args, query }) {
+          const softDeleteModels = ['User', 'Vendor', 'PurchaseOrder', 'Invoice', 'Contract'];
+          if (softDeleteModels.includes(model)) {
+            args.where = { deletedAt: null, ...args.where };
+          }
+          return query(args);
+        },
+        async findFirst({ model, args, query }) {
+          const softDeleteModels = ['User', 'Vendor', 'PurchaseOrder', 'Invoice', 'Contract'];
+          if (softDeleteModels.includes(model)) {
+            args.where = { deletedAt: null, ...args.where };
+          }
+          return query(args);
+        },
+        async findUnique({ model, args, query }) {
+          const softDeleteModels = ['User', 'Vendor', 'PurchaseOrder', 'Invoice', 'Contract'];
+          if (softDeleteModels.includes(model)) {
+            // findUnique requires unique fields, so we can't easily add deletedAt: null.
+            // But we can filter the result.
+            const result = await query(args);
+            if (result && (result as any).deletedAt) return null;
+            return result;
+          }
+          return query(args);
+        },
+      },
+    },
+  });
+
+  return client;
 }
 
 export const prisma = globalForPrisma.prisma ?? makePrisma();

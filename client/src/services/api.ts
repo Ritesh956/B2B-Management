@@ -2,14 +2,14 @@ import axios from 'axios';
 import { z } from 'zod';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
-  headers: { 'Content-Type': 'application/json' },
+  baseURL: (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '/api/v1'),
 });
 
 export const parseApiResponse = <T>(schema: z.ZodType<T>, data: unknown): T => {
   const parsed = schema.safeParse(data);
 
   if (!parsed.success) {
+    console.error('Zod Parsing Error:', parsed.error);
     throw new Error('Invalid API response payload');
   }
 

@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { accountService, type AccountNotificationPreferences } from '../services/account';
+import api from '../services/api';
+import toast from 'react-hot-toast';
+import DeletedItemsSection from '../components/DeletedItemsSection';
 
 const defaultPreferences: AccountNotificationPreferences = {
   emailEnabled: true,
@@ -21,12 +24,15 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [isTwoFactorEnabled, setIsTwoFactorEnabled] = useState(false);
+  const [saving2fa, setSaving2fa] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     setName(user.name);
     setEmail(user.email);
     setPreferences({ ...defaultPreferences, ...(user.notificationPreferences ?? {}) });
+    setIsTwoFactorEnabled(user.isTwoFactorEnabled ?? false);
   }, [user]);
 
   const updatePreference = (key: keyof AccountNotificationPreferences) => {
@@ -61,64 +67,178 @@ export default function SettingsPage() {
     }
   };
 
+  const onToggle2fa = async (enabled: boolean) => {
+    try {
+      setSaving2fa(true);
+      await api.patch('/auth/2fa/toggle', { isTwoFactorEnabled: enabled });
+      setIsTwoFactorEnabled(enabled);
+      await hydrate();
+      toast?.success(enabled ? 'Two-Factor Authentication enabled' : 'Two-Factor Authentication disabled');
+    } catch (err: any) {
+      toast?.error(err?.response?.data?.error || 'Failed to toggle 2FA');
+      setIsTwoFactorEnabled(!enabled); // revert
+    } finally {
+      setSaving2fa(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-slate-950 px-6 py-8 text-white md:px-8">
-      <div className="mb-8 max-w-3xl">
-        <h1 className="text-3xl font-bold">Profile & Settings</h1>
-        <p className="mt-1 text-slate-400">Update your name, login email, password, and notification preferences.</p>
+    <div className="page-root">
+      {/* Page Header */}
+      <div className="page-header" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div>
+          <h1 className="page-title">Profile &amp; Settings</h1>
+          <p className="page-subtitle">Update your identity, secure your account, and control how VendorHub reaches you.</p>
+        </div>
+        {/* Identity summary pills */}
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <div className="card-sm" style={{ padding: '10px 16px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-muted)' }}>Signed in as</span>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>{user?.email}</span>
+          </div>
+          <div className="card-sm" style={{ padding: '10px 16px', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <span style={{ fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.12em', color: 'var(--text-muted)' }}>Role</span>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>{user?.role}</span>
+          </div>
+        </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-        <div className="rounded-2xl border border-white/10 bg-slate-900 p-6">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">Profile</h2>
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            <label className="block">
-              <span className="mb-2 block text-sm text-slate-300">Name</span>
-              <input value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-violet-500" />
+      {/* Settings Grid */}
+      <div style={{ display: 'grid', gap: '20px', gridTemplateColumns: '1.2fr 0.8fr' }}>
+
+        {/* Profile Section */}
+        <div className="card" style={{ padding: '24px' }}>
+          <h2 style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', marginBottom: '20px' }}>
+            Profile
+          </h2>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Name</span>
+              <input value={name} onChange={(e) => setName(e.target.value)} className="input-base" />
             </label>
-            <label className="block">
-              <span className="mb-2 block text-sm text-slate-300">Email</span>
-              <input value={email} onChange={(e) => setEmail(e.target.value)} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-violet-500" />
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Email</span>
+              <input value={email} onChange={(e) => setEmail(e.target.value)} className="input-base" />
             </label>
-            <label className="block">
-              <span className="mb-2 block text-sm text-slate-300">New Password</span>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Leave blank to keep current password" className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500" />
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>New Password</span>
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Leave blank to keep current" className="input-base" />
             </label>
-            <label className="block">
-              <span className="mb-2 block text-sm text-slate-300">Confirm Password</span>
-              <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-violet-500" />
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Confirm Password</span>
+              <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="input-base" />
             </label>
           </div>
 
-          <div className="mt-6 flex flex-wrap gap-3">
-            <button onClick={onSave} disabled={saving} className="rounded-xl bg-linear-to-r from-violet-600 to-purple-600 px-5 py-3 text-sm font-semibold text-white transition hover:from-violet-500 hover:to-purple-500 disabled:opacity-50">
+          <div style={{ marginTop: '24px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <button onClick={onSave} disabled={saving} className="btn-primary" style={{ opacity: saving ? 0.6 : 1 }}>
               {saving ? 'Saving...' : 'Save Changes'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!user) return;
+                setName(user.name);
+                setEmail(user.email);
+                setPassword('');
+                setConfirmPassword('');
+                setPreferences({ ...defaultPreferences, ...(user.notificationPreferences ?? {}) });
+                setMessage('Reset to current profile values');
+                setError('');
+              }}
+              className="btn-secondary"
+            >
+              Reset
             </button>
           </div>
 
-          {message && <p className="mt-4 text-sm text-emerald-300">{message}</p>}
-          {error && <p className="mt-4 text-sm text-rose-300">{error}</p>}
+          {message && <p style={{ marginTop: '16px', fontSize: '13px', color: '#34d399' }}>{message}</p>}
+          {error && <p style={{ marginTop: '16px', fontSize: '13px', color: '#f87171' }}>{error}</p>}
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-slate-900 p-6">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-400">Email Notifications</h2>
-          <div className="mt-5 space-y-4">
+        {/* Notifications Section */}
+        <div className="card" style={{ padding: '24px' }}>
+          <h2 style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', marginBottom: '20px' }}>
+            Email Notifications
+          </h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {[
               { key: 'emailEnabled', label: 'Enable email notifications' },
               { key: 'poApprovals', label: 'Purchase order approvals' },
               { key: 'invoiceUpdates', label: 'Invoice updates' },
               { key: 'contractReminders', label: 'Contract reminders' },
             ].map((item) => (
-              <label key={item.key} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 px-4 py-3">
-                <span className="text-sm text-slate-200">{item.label}</span>
-                <input type="checkbox" checked={preferences[item.key as keyof AccountNotificationPreferences]} onChange={() => updatePreference(item.key as keyof AccountNotificationPreferences)} className="h-4 w-4 rounded border-white/20 bg-slate-950 text-violet-500 focus:ring-violet-500" />
+              <label
+                key={item.key}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '12px 16px', borderRadius: '10px',
+                  border: '1px solid var(--border-dim)', background: 'var(--bg-hover)',
+                  cursor: 'pointer', transition: 'background 0.15s',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--bg-hover)')}
+              >
+                <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{item.label}</span>
+                <input
+                  type="checkbox"
+                  checked={preferences[item.key as keyof AccountNotificationPreferences]}
+                  onChange={() => updatePreference(item.key as keyof AccountNotificationPreferences)}
+                  style={{ width: '16px', height: '16px', accentColor: '#06b6d4', cursor: 'pointer' }}
+                />
               </label>
             ))}
           </div>
 
-          <div className="mt-6 rounded-xl border border-white/10 bg-white/3 p-4 text-sm text-slate-400">
+          <div style={{
+            marginTop: '16px', padding: '12px 16px', borderRadius: '10px',
+            border: '1px solid var(--border-dim)', background: 'var(--bg-hover)',
+            fontSize: '12px', color: 'var(--text-muted)'
+          }}>
             Changes apply immediately after save and are synced to your account profile.
           </div>
+        </div>
+
+        {/* Security Section — full width */}
+        <div className="card" style={{ padding: '24px', gridColumn: '1 / -1' }}>
+          <h2 style={{ fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', marginBottom: '20px' }}>
+            Security
+          </h2>
+          <div style={{ maxWidth: '640px' }}>
+            <label
+              style={{
+                display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
+                padding: '16px', borderRadius: '10px',
+                border: '1px solid var(--border-dim)', background: 'var(--bg-hover)',
+                cursor: 'pointer', transition: 'background 0.15s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--bg-hover)')}
+            >
+              <div>
+                <span style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>
+                  Two-Factor Authentication (Email)
+                </span>
+                <span style={{ display: 'block', marginTop: '4px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                  When enabled, you'll receive a 6-digit verification code via email each time you log in.
+                </span>
+              </div>
+              <div style={{ marginLeft: '16px', display: 'flex', alignItems: 'center' }}>
+                <input
+                  type="checkbox"
+                  disabled={saving2fa}
+                  checked={isTwoFactorEnabled}
+                  onChange={(e) => onToggle2fa(e.target.checked)}
+                  style={{ width: '18px', height: '18px', accentColor: '#06b6d4', cursor: 'pointer', opacity: saving2fa ? 0.5 : 1 }}
+                />
+              </div>
+            </label>
+          </div>
+        </div>
+
+        {/* Deleted Items Section — full width */}
+        <div style={{ gridColumn: '1 / -1' }}>
+          <DeletedItemsSection />
         </div>
       </div>
     </div>

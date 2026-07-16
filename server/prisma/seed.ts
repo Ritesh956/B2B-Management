@@ -20,6 +20,18 @@ async function main() {
     bcrypt.hash(DEMO_PASSWORDS.vendor, 10),
   ]);
 
+  console.log('Cleaning up old data...');
+  await prisma.auditLog.deleteMany({});
+  await prisma.notification.deleteMany({});
+  await prisma.invoice.deleteMany({});
+  await prisma.purchaseOrder.deleteMany({});
+  await prisma.contract.deleteMany({});
+  await prisma.vendor.deleteMany({});
+  await prisma.user.deleteMany({});
+  await prisma.company.deleteMany({});
+  console.log('Database cleared.');
+
+  console.log('Seeding demo data...');
   const company = await prisma.company.upsert({
     where: { id: 'demo-company-main' },
     update: {
@@ -112,7 +124,7 @@ async function main() {
     },
   });
 
-  await prisma.contract.deleteMany({ where: { title: { startsWith: 'Demo Contract' } } });
+
 
   const today = new Date();
   const in20Days = new Date(today);

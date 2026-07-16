@@ -1,109 +1,140 @@
-import { useEffect, useState } from 'react';
-import { vendorPortalService } from '../../services/vendorPortal';
+import { useState, useEffect } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import toast from 'react-hot-toast';
+import api from '../../services/api';
+
+const profileSchema = z.object({
+  contactName: z.string().min(2, 'Contact name is required'),
+  phone: z.string().min(5, 'Valid phone number is required'),
+  companyAddress: z.string().min(5, 'Company address is required').optional(),
+});
+type ProfileFormValues = z.infer<typeof profileSchema>;
+
+const InfoRow = ({ label, value }: { label: string; value: string }) => (
+  <div>
+    <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 5 }}>{label}</p>
+    <p style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>{value}</p>
+  </div>
+);
 
 export default function VendorProfilePage() {
-  const [form, setForm] = useState({
-    name: '',
-    email: '',
-    contactName: '',
-    phone: '',
-    companyName: '',
-  });
+  const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const { register, handleSubmit, reset, formState: { errors } } = useForm<ProfileFormValues>({ resolver: zodResolver(profileSchema) });
 
   useEffect(() => {
-    const load = async () => {
+    const fetchProfile = async () => {
       try {
-        setLoading(true);
-        const { profile } = await vendorPortalService.getProfile();
-        setForm({
-          name: profile.name,
-          email: profile.email,
-          contactName: profile.contactName,
-          phone: profile.phone,
-          companyName: profile.companyName,
+        const res = await api.get('/vendorPortal/profile');
+        setProfile(res.data.profile);
+        reset({
+          contactName: res.data.profile.contactName || '',
+          phone: res.data.profile.phone || '',
+          companyAddress: res.data.profile.address || '',
         });
-      } catch {
-        setError('Failed to load profile');
+      } catch (err) {
+        console.error(err);
       } finally {
         setLoading(false);
       }
     };
+    fetchProfile();
+  }, [reset]);
 
-    load();
-  }, []);
-
-  const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setForm((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const onSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setMessage('');
-
+  const onSubmit = async (data: ProfileFormValues) => {
     try {
-      setSaving(true);
-      const { profile } = await vendorPortalService.updateProfile({
-        name: form.name,
-        email: form.email,
-        contactName: form.contactName,
-        phone: form.phone,
-      });
-      setForm((prev) => ({ ...prev, ...profile, companyName: profile.companyName }));
-      setMessage('Profile updated successfully');
+      setIsSaving(true);
+      await api.patch('/vendorPortal/profile', { contactName: data.contactName, phone: data.phone });
+      toast.success('Profile updated successfully');
     } catch (err: any) {
-      setError(err?.response?.data?.error || 'Failed to update profile');
+      toast.error(err.response?.data?.error || 'Failed to update profile');
     } finally {
-      setSaving(false);
+      setIsSaving(false);
     }
   };
 
-  if (loading) {
-    return <div className="p-6 text-white">Loading profile...</div>;
-  }
+  if (loading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+      <div style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid var(--border-subtle)', borderTopColor: '#10b981', animation: 'spin 0.7s linear infinite' }} />
+    </div>
+  );
 
   return (
-    <div className="mx-auto max-w-2xl p-6 text-white">
-      <h1 className="mb-2 text-3xl font-bold">Vendor Profile</h1>
-      <p className="mb-6 text-slate-400">Manage your contact information.</p>
+    <div className="page-root animate-in" style={{ maxWidth: 680 }}>
+      <div className="page-header">
+        <h1 className="page-title">My Profile</h1>
+        <p className="page-subtitle">Update your contact details and company information.</p>
+      </div>
 
-      <form onSubmit={onSave} className="space-y-4 rounded-xl border border-white/10 bg-slate-900 p-5">
-        {message && <p className="text-sm text-emerald-400">{message}</p>}
-        {error && <p className="text-sm text-red-400">{error}</p>}
-
-        <div>
-          <label className="mb-1 block text-sm text-slate-300">Company</label>
-          <input value={form.companyName} disabled className="w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2 opacity-70" />
+      {/* Read-only account info */}
+      <div className="card">
+        <div style={{ paddingBottom: 16, marginBottom: 20, borderBottom: '1px solid var(--border-dim)' }}>
+          <h2 style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)', margin: 0 }}>Account Information</h2>
+          <p style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>These details cannot be changed directly.</p>
         </div>
-
-        <div>
-          <label className="mb-1 block text-sm text-slate-300">Account Name</label>
-          <input name="name" value={form.name} onChange={onChange} className="w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2" />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 24 }}>
+          <InfoRow label="Company Name" value={profile?.companyName || '—'} />
+          <InfoRow label="Email Address" value={profile?.email || '—'} />
+          <InfoRow label="Role" value="Vendor" />
         </div>
+      </div>
 
-        <div>
-          <label className="mb-1 block text-sm text-slate-300">Email</label>
-          <input name="email" value={form.email} onChange={onChange} className="w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2" />
+      {/* Editable details */}
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <h2 style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)', margin: 0 }}>Editable Details</h2>
+
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 7 }}>
+              Primary Contact Name
+            </label>
+            <input type="text" {...register('contactName')} className="input-base" />
+            {errors.contactName && <p style={{ fontSize: 11.5, color: '#f87171', marginTop: 5 }}>{errors.contactName.message}</p>}
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 7 }}>
+              Phone Number
+            </label>
+            <input type="tel" {...register('phone')} className="input-base" />
+            {errors.phone && <p style={{ fontSize: 11.5, color: '#f87171', marginTop: 5 }}>{errors.phone.message}</p>}
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 7 }}>
+              Company Address
+            </label>
+            <textarea
+              {...register('companyAddress')}
+              rows={3}
+              className="input-base"
+              style={{ resize: 'vertical', fontFamily: 'var(--font-sans)' }}
+            />
+            {errors.companyAddress && <p style={{ fontSize: 11.5, color: '#f87171', marginTop: 5 }}>{errors.companyAddress.message}</p>}
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 4 }}>
+            <button
+              type="submit"
+              disabled={isSaving}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                padding: '10px 22px',
+                background: 'linear-gradient(135deg, #10b981, #059669)',
+                color: '#fff', border: 'none', borderRadius: 10,
+                fontSize: 13.5, fontWeight: 600, cursor: isSaving ? 'not-allowed' : 'pointer',
+                opacity: isSaving ? 0.7 : 1, transition: 'all 200ms',
+                boxShadow: '0 4px 14px rgba(16,185,129,0.3)',
+              }}
+            >
+              {isSaving ? 'Saving…' : '✓ Save Changes'}
+            </button>
+          </div>
         </div>
-
-        <div>
-          <label className="mb-1 block text-sm text-slate-300">Vendor Contact Name</label>
-          <input name="contactName" value={form.contactName} onChange={onChange} className="w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2" />
-        </div>
-
-        <div>
-          <label className="mb-1 block text-sm text-slate-300">Phone</label>
-          <input name="phone" value={form.phone} onChange={onChange} className="w-full rounded-lg border border-white/10 bg-slate-950 px-3 py-2" />
-        </div>
-
-        <button type="submit" disabled={saving} className="rounded-lg bg-violet-600 px-4 py-2 font-semibold hover:bg-violet-500 disabled:opacity-60">
-          {saving ? 'Saving...' : 'Save Changes'}
-        </button>
       </form>
     </div>
   );

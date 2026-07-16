@@ -1,128 +1,218 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useCallback } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { type POStatus } from '../../services/pos';
 import { Role } from '../../store/authStore';
 import { useAuthStore } from '../../store/authStore';
 import RoleGate from '../../components/RoleGate';
 import CreatePOModal from './CreatePOModal';
 import EmptyState from '../../components/EmptyState';
-import { downloadCsv } from '../../utils/csv';
+import { downloadBlob } from '../../utils/csv';
 import { usePOsQuery } from '../../hooks/usePOQuery';
 import { useVendorsQuery } from '../../hooks/useVendorsQuery';
+import { TableSkeleton } from '../../components/Skeletons';
+import FilterPanel, { type FilterValues, countActiveFilters, getFilterPills } from '../../components/FilterPanel';
+import CopyToClipboard from '../../components/CopyToClipboard';
+import toast from 'react-hot-toast';
 
-const STATUS_STYLE: Record<string, string> = {
-  DRAFT: 'bg-slate-500/20 text-slate-300 border border-slate-500/30',
-  PENDING_APPROVAL: 'bg-amber-500/15 text-amber-400 border border-amber-500/30',
-  APPROVED: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30',
-  REJECTED: 'bg-red-500/15 text-red-400 border border-red-500/30',
-  CLOSED: 'bg-slate-500/20 text-slate-300 border border-slate-500/30',
+const EMPTY_FILTERS: FilterValues = {
+  statuses: [], vendorId: '', minAmount: '', maxAmount: '', fromDate: '', toDate: '', createdById: '',
 };
 
-const FILTERS: Array<POStatus | ''> = ['', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED'];
+function filtersToParams(f: FilterValues) {
+  const p: Record<string, string> = {};
+  if (f.statuses.length > 0) p.status = f.statuses.join(',');
+  if (f.vendorId) p.vendorId = f.vendorId;
+  if (f.minAmount) p.minAmount = f.minAmount;
+  if (f.maxAmount) p.maxAmount = f.maxAmount;
+  if (f.fromDate) p.fromDate = f.fromDate;
+  if (f.toDate) p.toDate = f.toDate;
+  if (f.createdById) p.createdById = f.createdById;
+  return p;
+}
+
+function paramsToFilters(params: URLSearchParams): FilterValues {
+  return {
+    statuses: params.get('status') ? params.get('status')!.split(',') : [],
+    vendorId: params.get('vendorId') || '',
+    minAmount: params.get('minAmount') || '',
+    maxAmount: params.get('maxAmount') || '',
+    fromDate: params.get('fromDate') || '',
+    toDate: params.get('toDate') || '',
+    createdById: params.get('createdById') || '',
+  };
+}
 
 export default function POList() {
   const userRole = useAuthStore((s) => s.user?.role);
-  const [statusFilter, setStatusFilter] = useState<POStatus | ''>('');
+  const [searchParams, setSearchParams] = useSearchParams();
   const [showCreate, setShowCreate] = useState(false);
-  const { data: poData, isLoading, refetch: refetchPOs } = usePOsQuery({ status: statusFilter || undefined });
-  const { data: vendorData } = useVendorsQuery({ status: 'VERIFIED', limit: 100 });
+  const [filterOpen, setFilterOpen] = useState(false);
+
+  const filters = paramsToFilters(searchParams);
+
+  const handleFiltersChange = useCallback((newFilters: FilterValues) => {
+    const params = filtersToParams(newFilters);
+    setSearchParams(params, { replace: true });
+  }, [setSearchParams]);
+
+  const apiParams: Record<string, string> = filtersToParams(filters);
+
+  const { data: poData, isLoading, refetch: refetchPOs } = usePOsQuery(
+    { status: apiParams.status as POStatus | undefined, ...apiParams } as any
+  );
+  const { data: vendorData } = useVendorsQuery({ limit: 100 });
   const pos = poData?.pos ?? [];
   const vendors = vendorData?.vendors ?? [];
+  const approvedCount = pos.filter((po) => po.status === 'APPROVED').length;
+  const pendingCount = pos.filter((po) => po.status === 'PENDING_APPROVAL').length;
+  const activeFilterCount = countActiveFilters(filters);
+  const filterPills = getFilterPills(filters, handleFiltersChange, vendors.map(v => ({ id: v.id, name: v.companyName })));
 
-  const exportCsv = () => {
-    downloadCsv(
-      'purchase-orders.csv',
-      ['PO Number', 'Vendor', 'Total', 'Status', 'Current Approver', 'Created'],
-      pos.map((po) => [
-        po.poNumber,
-        po.vendor.companyName,
-        po.totalAmount,
-        po.status,
-        po.currentApproverRole ?? '',
-        new Date(po.createdAt).toLocaleDateString('en-IN'),
-      ])
-    );
+  const exportCsv = async () => {
+    try {
+      const params = new URLSearchParams(apiParams);
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/pos/export?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!res.ok) throw new Error('Failed to export CSV');
+      const blob = await res.blob();
+      downloadBlob(blob, 'purchase-orders.csv');
+    } catch (err) {
+      toast.error('Failed to export CSV');
+    }
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      <div className="border-b border-white/5 px-8 py-5 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Purchase Orders</h1>
-          <p className="text-slate-400 text-sm mt-0.5">{pos.length} records</p>
-        </div>
+    <div className="page-root">
+      {/* Page Header */}
+      <div className="page-header" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px' }}>
+            <div>
+              <h1 className="page-title">Purchase Orders</h1>
+              <p className="page-subtitle">Review approval flow, vendor linkage, and creation history from one place.</p>
+            </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={exportCsv}
-            className="px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-sm font-semibold text-white hover:bg-white/10 transition"
-          >
-            Export CSV
-          </button>
-          <RoleGate roles={[Role.PROCUREMENT]} fallback={null}>
-            <button
-              onClick={() => setShowCreate(true)}
-              className="px-4 py-2.5 bg-linear-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 rounded-xl text-sm font-semibold"
-            >
-              + New PO
-            </button>
-          </RoleGate>
-        </div>
-      </div>
-
-      <div className="px-8 py-4 border-b border-white/5 flex gap-2">
-        {FILTERS.map((status) => (
-          <button
-            key={status || 'ALL'}
-            onClick={() => setStatusFilter(status)}
-            className={`px-4 py-2 rounded-lg text-sm border transition ${
-              statusFilter === status
-                ? 'bg-violet-600 border-violet-500 text-white'
-                : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
-            }`}
-          >
-            {status || 'All'}
-          </button>
-        ))}
-      </div>
-
-      <div className="px-8 py-6">
-        {isLoading ? (
-          <div className="py-20 flex justify-center">
-            <div className="w-8 h-8 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
+            {/* Stat Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', minWidth: '300px' }}>
+              <div className="stat-card">
+                <p className="stat-label">Total</p>
+                <p className="stat-value">{pos.length}</p>
+              </div>
+              <div className="stat-card" style={{ borderColor: 'rgba(245,158,11,0.25)', background: 'rgba(245,158,11,0.08)' }}>
+                <p className="stat-label" style={{ color: '#f59e0b' }}>Pending</p>
+                <p className="stat-value">{pendingCount}</p>
+              </div>
+              <div className="stat-card" style={{ borderColor: 'rgba(16,185,129,0.25)', background: 'rgba(16,185,129,0.08)' }}>
+                <p className="stat-label" style={{ color: '#10b981' }}>Approved</p>
+                <p className="stat-value">{approvedCount}</p>
+              </div>
+            </div>
           </div>
+
+          {/* Action Buttons */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
+            <button onClick={exportCsv} className="btn-secondary">
+              Export CSV
+            </button>
+            <button
+              onClick={() => setFilterOpen(true)}
+              className={activeFilterCount > 0 ? 'btn-secondary' : 'btn-secondary'}
+              style={activeFilterCount > 0 ? { borderColor: 'rgba(6,182,212,0.4)', color: '#06b6d4', background: 'rgba(6,182,212,0.08)' } : {}}
+            >
+              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <svg style={{ width: '14px', height: '14px' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+                </svg>
+                Filters
+                {activeFilterCount > 0 && (
+                  <span style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    width: '18px', height: '18px', borderRadius: '50%',
+                    background: '#06b6d4', fontSize: '10px', fontWeight: 700, color: '#fff'
+                  }}>
+                    {activeFilterCount}
+                  </span>
+                )}
+              </span>
+            </button>
+            <RoleGate roles={[Role.PROCUREMENT, Role.ADMIN]} fallback={null}>
+              <button onClick={() => setShowCreate(true)} className="btn-primary">
+                New PO
+              </button>
+            </RoleGate>
+          </div>
+        </div>
+      </div>
+
+      {/* Active filter pills */}
+      {filterPills.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Active filters:</span>
+          {filterPills.map((pill, i) => (
+            <span key={i} style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px',
+              borderRadius: '9999px', border: '1px solid rgba(6,182,212,0.25)',
+              background: 'rgba(6,182,212,0.08)', padding: '2px 10px',
+              fontSize: '11px', color: '#06b6d4'
+            }}>
+              {pill.label}
+              <button onClick={pill.onRemove} style={{ color: 'var(--text-muted)', lineHeight: 1 }}>×</button>
+            </span>
+          ))}
+          <button
+            onClick={() => handleFiltersChange(EMPTY_FILTERS)}
+            style={{ fontSize: '11px', color: 'var(--text-muted)', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer' }}
+          >
+            Clear all filters
+          </button>
+        </div>
+      )}
+
+      {/* Table */}
+      <div>
+        {isLoading ? (
+          <TableSkeleton rows={5} cols={7} />
         ) : pos.length === 0 ? (
           <EmptyState
             title="No purchase orders yet"
             description="Create the first purchase order to start your approval and invoice flow."
-            actionLabel={userRole === Role.PROCUREMENT ? 'Create your first PO' : undefined}
-            onAction={userRole === Role.PROCUREMENT ? () => setShowCreate(true) : undefined}
+            actionLabel={(userRole === Role.PROCUREMENT || userRole === Role.ADMIN) ? 'Create your first PO' : undefined}
+            onAction={(userRole === Role.PROCUREMENT || userRole === Role.ADMIN) ? () => setShowCreate(true) : undefined}
           />
         ) : (
-          <div className="bg-white/3 border border-white/5 rounded-2xl overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <table className="data-table">
               <thead>
-                <tr className="border-b border-white/5">
+                <tr>
                   {['PO Number', 'Vendor', 'Total', 'Status', 'Current Approver', 'Created', ''].map((h) => (
-                    <th key={h} className="text-left px-5 py-3.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
+                    <th key={h}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {pos.map((po) => (
-                  <tr key={po.id} className="border-b border-white/5 hover:bg-white/5 transition">
-                    <td className="px-5 py-4 text-white font-medium">{po.poNumber}</td>
-                    <td className="px-5 py-4 text-slate-300">{po.vendor.companyName}</td>
-                    <td className="px-5 py-4 text-slate-300">Rs. {po.totalAmount.toLocaleString('en-IN')}</td>
-                    <td className="px-5 py-4">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_STYLE[po.status] || STATUS_STYLE.DRAFT}`}>
+                  <tr key={po.id}>
+                    <td style={{ color: 'var(--text-primary)', fontWeight: 500 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        {po.poNumber}
+                        <CopyToClipboard text={po.poNumber} label="Copy PO Number" />
+                      </div>
+                    </td>
+                    <td>{po.vendor.companyName}</td>
+                    <td>Rs. {po.totalAmount.toLocaleString('en-IN')}</td>
+                    <td>
+                      <span className={`badge badge-${po.status.toLowerCase()}`}>
                         {po.status}
                       </span>
                     </td>
-                    <td className="px-5 py-4 text-slate-400">{po.currentApproverRole ?? '-'}</td>
-                    <td className="px-5 py-4 text-slate-400">{new Date(po.createdAt).toLocaleDateString('en-IN')}</td>
-                    <td className="px-5 py-4">
-                      <Link to={`/pos/${po.id}`} className="text-violet-400 hover:text-violet-300 font-medium text-xs">View -&gt;</Link>
+                    <td>{po.currentApproverRole ?? '-'}</td>
+                    <td>{new Date(po.createdAt).toLocaleDateString('en-IN')}</td>
+                    <td>
+                      <Link to={`/pos/${po.id}`} style={{ color: '#6366f1', fontWeight: 500, fontSize: '12px' }}>
+                        View →
+                      </Link>
                     </td>
                   </tr>
                 ))}
@@ -131,6 +221,18 @@ export default function POList() {
           </div>
         )}
       </div>
+
+      <FilterPanel
+        isOpen={filterOpen}
+        onClose={() => setFilterOpen(false)}
+        config={{
+          availableStatuses: ['PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'DRAFT', 'CLOSED'],
+          vendors: vendors.map((v) => ({ id: v.id, name: v.companyName })),
+        }}
+        values={filters}
+        onChange={handleFiltersChange}
+        savedFilterKey="pos"
+      />
 
       {showCreate && (
         <CreatePOModal

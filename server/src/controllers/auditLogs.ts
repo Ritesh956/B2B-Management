@@ -8,6 +8,7 @@ export const listAuditLogs = async (req: AuthRequest, res: Response): Promise<vo
       page = '1',
       limit = '20',
       entity,
+      entityId,
       userId,
       from,
       to,
@@ -22,6 +23,10 @@ export const listAuditLogs = async (req: AuthRequest, res: Response): Promise<vo
 
     if (entity) {
       where.entity = entity;
+    }
+
+    if (entityId) {
+      where.entityId = entityId;
     }
 
     if (userId) {

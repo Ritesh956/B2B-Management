@@ -8,7 +8,7 @@ export interface Vendor {
   email: string;
   phone: string;
   status: 'PENDING' | 'VERIFIED' | 'REJECTED';
-  documents: { name: string; url: string; mimetype: string; size: number }[] | null;
+  documents: { name: string; url: string; mimetype?: string; size?: number }[] | null;
   performanceScore: number | null;
   createdAt: string;
 }
@@ -16,15 +16,11 @@ export interface Vendor {
 export interface VendorPerformanceRow {
   id: string;
   companyName: string;
-  contactName: string;
-  email: string;
-  phone: string;
-  status: 'PENDING' | 'VERIFIED' | 'REJECTED';
   performanceScore: number | null;
-  onTimeDeliveryPct: number;
-  invoiceMismatchRate: number;
-  approvedPOCount: number;
-  invoiceCount: number;
+  totalPOs: number;
+  totalInvoices: number;
+  mismatchedInvoices: number;
+  mismatchRate: number;
 }
 
 export interface VendorListResponse {
@@ -52,8 +48,8 @@ const vendorSchema: z.ZodType<Vendor> = z.object({
       z.object({
         name: z.string(),
         url: z.string(),
-        mimetype: z.string(),
-        size: z.number(),
+        mimetype: z.string().optional(),
+        size: z.number().optional(),
       })
     )
     .nullable(),
@@ -64,15 +60,11 @@ const vendorSchema: z.ZodType<Vendor> = z.object({
 const vendorPerformanceRowSchema: z.ZodType<VendorPerformanceRow> = z.object({
   id: z.string(),
   companyName: z.string(),
-  contactName: z.string(),
-  email: z.string(),
-  phone: z.string(),
-  status: vendorStatusSchema,
   performanceScore: z.number().nullable(),
-  onTimeDeliveryPct: z.number(),
-  invoiceMismatchRate: z.number(),
-  approvedPOCount: z.number(),
-  invoiceCount: z.number(),
+  totalPOs: z.number(),
+  totalInvoices: z.number(),
+  mismatchedInvoices: z.number(),
+  mismatchRate: z.number(),
 });
 
 const vendorListResponseSchema: z.ZodType<VendorListResponse> = z.object({
@@ -99,9 +91,7 @@ export const vendorService = {
 
   create: (formData: FormData) =>
     api
-      .post('/vendors', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
+      .post('/vendors', formData)
       .then((r) => parseApiResponse(singleVendorResponseSchema, r.data)),
 
   updateStatus: (id: string, status: 'VERIFIED' | 'REJECTED') =>
@@ -116,6 +106,6 @@ export const vendorService = {
 
   updatePerformanceScore: (id: string, performanceScore: number) =>
     api
-      .patch(`/vendors/${id}/performance-score`, { performanceScore })
+      .patch(`/vendors/${id}/performance`, { performanceScore })
       .then((r) => parseApiResponse(singleVendorResponseSchema, r.data)),
 };

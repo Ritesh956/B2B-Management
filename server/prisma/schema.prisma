@@ -1,5 +1,6 @@
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 generator client {
@@ -12,6 +13,12 @@ enum Role {
   PROCUREMENT
   MANAGER
   VENDOR
+}
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  INACTIVE
 }
 
 enum VendorStatus {
@@ -43,15 +50,20 @@ enum InvoiceStatus {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  name      String
-  email     String   @unique
-  password  String
-  role      Role
-  companyId String?
+  id                      String   @id @default(uuid())
+  name                    String
+  email                   String   @unique
+  password                String
+  role                    Role
+  companyId               String?
   notificationPreferences Json?
-  company   Company? @relation(fields: [companyId], references: [id])
-  createdAt DateTime @default(now())
+  isTwoFactorEnabled      Boolean  @default(false)
+  company                 Company? @relation(fields: [companyId], references: [id])
+  status                  UserStatus @default(ACTIVE)
+  lastLogin               DateTime?
+  isActive                Boolean    @default(true)
+  createdAt               DateTime @default(now())
+  deletedAt               DateTime?
 
   purchaseOrders PurchaseOrder[] @relation("CreatedBy")
   auditLogs      AuditLog[]
@@ -81,6 +93,7 @@ model Vendor {
   documents        Json?
   performanceScore Float?       @default(0.0)
   createdAt        DateTime     @default(now())
+  deletedAt        DateTime?
 
   contracts      Contract[]
   purchaseOrders PurchaseOrder[]
@@ -99,6 +112,7 @@ model Contract {
   fileUrl   String?
   status    ContractStatus @default(ACTIVE)
   createdAt DateTime       @default(now())
+  deletedAt DateTime?
 
   @@index([vendorId])
 }
@@ -116,6 +130,7 @@ model PurchaseOrder {
   approvalChain        Json?
   currentApproverIndex Int      @default(0)
   createdAt            DateTime @default(now())
+  deletedAt            DateTime?
 
   invoices Invoice[]
 
@@ -134,6 +149,7 @@ model Invoice {
   status        InvoiceStatus @default(SUBMITTED)
   fileUrl       String?
   submittedAt   DateTime      @default(now())
+  deletedAt     DateTime?
 
   @@index([poId])
   @@index([vendorId])

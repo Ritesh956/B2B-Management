@@ -41,6 +41,7 @@ export const getVendorDashboard = async (req: AuthRequest, res: Response): Promi
     const [
       poCount,
       submittedInvoiceCount,
+      paidInvoiceCount,
       totalContracts,
       activeContracts,
       expiringSoonContracts,
@@ -52,6 +53,7 @@ export const getVendorDashboard = async (req: AuthRequest, res: Response): Promi
     ] = await Promise.all([
       prisma.purchaseOrder.count({ where: { vendorId: vendor.id } }),
       prisma.invoice.count({ where: { vendorId: vendor.id } }),
+      prisma.invoice.count({ where: { vendorId: vendor.id, status: 'PAID' } }),
       prisma.contract.count({ where: { vendorId: vendor.id } }),
       prisma.contract.count({
         where: {
@@ -134,6 +136,7 @@ export const getVendorDashboard = async (req: AuthRequest, res: Response): Promi
       summary: {
         poCount,
         submittedInvoiceCount,
+        paidInvoiceCount,
         contractSummary,
       },
       pos,

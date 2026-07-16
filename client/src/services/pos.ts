@@ -34,12 +34,14 @@ export interface PurchaseOrder {
   approvalSteps: POApprovalStep[];
   currentApproverRole: string | null;
   rejectionReason: string | null;
+  rejectedAt?: string | null;
   invoices?: Array<{
     id: string;
     invoiceNumber: string;
     status: 'SUBMITTED' | 'MATCHED' | 'MISMATCHED' | 'APPROVED' | 'PAID';
     submittedAt: string;
     amount: number;
+    paidAt?: string | null;
   }>;
 }
 
@@ -81,6 +83,7 @@ const poSchema: z.ZodType<PurchaseOrder> = z.object({
   ),
   currentApproverRole: z.string().nullable(),
   rejectionReason: z.string().nullable(),
+  rejectedAt: z.string().nullable().optional(),
   invoices: z
     .array(
       z.object({
@@ -89,6 +92,7 @@ const poSchema: z.ZodType<PurchaseOrder> = z.object({
         status: z.enum(['SUBMITTED', 'MATCHED', 'MISMATCHED', 'APPROVED', 'PAID']),
         submittedAt: z.string(),
         amount: z.number(),
+        paidAt: z.string().nullable().optional(),
       })
     )
     .optional(),
@@ -102,7 +106,7 @@ const poListResponseSchema: z.ZodType<POListResponse> = z.object({
 const singlePoResponseSchema = z.object({ po: poSchema });
 
 export const poService = {
-  list: (params?: { status?: POStatus | '' }) =>
+  list: (params?: { status?: POStatus | '' | string; vendorId?: string; minAmount?: string; maxAmount?: string; fromDate?: string; toDate?: string; createdById?: string }) =>
     api.get('/pos', { params }).then((r) => parseApiResponse(poListResponseSchema, r.data)),
 
   get: (id: string) =>

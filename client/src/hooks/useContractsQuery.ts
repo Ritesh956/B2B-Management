@@ -9,6 +9,7 @@ export const contractQueryKeys = {
     page?: number;
     limit?: number;
     expiringSoon?: boolean;
+    filter?: string;
   }) => [...contractQueryKeys.all, 'list', params] as const,
   detail: (id: string) => [...contractQueryKeys.all, 'detail', id] as const,
 };
@@ -19,6 +20,7 @@ export const useContractsQuery = (params: {
   page?: number;
   limit?: number;
   expiringSoon?: boolean;
+  filter?: string;
 }) =>
   useQuery({
     queryKey: contractQueryKeys.list(params),
@@ -28,7 +30,8 @@ export const useContractsQuery = (params: {
         params.searchVendor,
         params.page ?? 1,
         params.limit ?? 20,
-        params.expiringSoon
+        params.expiringSoon,
+        params.filter
       ),
   });
 

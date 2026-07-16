@@ -1,0 +1,54 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+          cache: 'npm'
+      - name: Install Dependencies (Client)
+        run: cd client && npm install
+      - name: Lint (Client)
+        run: cd client && npm run lint
+      - name: Install Dependencies (Server)
+        run: cd server && npm install
+      - name: Lint (Server)
+        run: cd server && npm run lint
+
+  validate-schema:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+          cache: 'npm'
+      - name: Install Dependencies (Server)
+        run: cd server && npm install
+      - name: Validate Prisma Schema
+        run: cd server && npx prisma validate
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20
+          cache: 'npm'
+      - name: Install Dependencies (Client)
+        run: cd client && npm install
+      - name: Build (Client)
+        run: cd client && npm run build

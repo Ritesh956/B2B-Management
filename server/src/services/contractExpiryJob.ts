@@ -1,7 +1,8 @@
 import cron from 'node-cron';
 import { prisma } from '../config/prisma';
 import { Role, ContractStatus } from '@prisma/client';
-import { enqueueEmail, enqueueNotification } from '../queues';
+import { enqueueEmail } from '../queues';
+import { notifyUser } from '../utils/notify';
 
 export const startContractExpiryJob = () => {
   // Run daily at 9 AM (0 9 * * *)
@@ -59,10 +60,7 @@ export const startContractExpiryJob = () => {
           html: `<p>The following contracts are expiring within 30 days and require attention:</p><pre>${contractList}</pre>`,
         }),
         ...admins.map((admin) =>
-          enqueueNotification({
-            userId: admin.id,
-            message: `${expiringContracts.length} contract(s) expiring within 30 days`,
-          })
+          notifyUser(admin.id, `${expiringContracts.length} contract(s) expiring within 30 days`, 'INFO')
         ),
       ]);
 

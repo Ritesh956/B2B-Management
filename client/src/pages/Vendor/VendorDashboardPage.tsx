@@ -1,92 +1,181 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
+import api from '../../services/api';
 import { Link } from 'react-router-dom';
-import { vendorPortalService, type VendorDashboardResponse } from '../../services/vendorPortal';
+
+const STAT_ACCENTS = [
+  { color: '#10b981', bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.2)' },
+  { color: '#06b6d4', bg: 'rgba(6,182,212,0.08)',  border: 'rgba(6,182,212,0.2)' },
+  { color: '#6366f1', bg: 'rgba(99,102,241,0.08)', border: 'rgba(99,102,241,0.2)' },
+  { color: '#f59e0b', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.2)' },
+];
+
+const POStatusColor: Record<string, string> = {
+  APPROVED: '#10b981', PENDING_APPROVAL: '#f59e0b', DRAFT: '#94a3b8', REJECTED: '#ef4444', CLOSED: '#64748b',
+};
+const InvStatusColor: Record<string, string> = {
+  PAID: '#10b981', APPROVED: '#6366f1', MATCHED: '#06b6d4', SUBMITTED: '#f59e0b', MISMATCHED: '#ef4444',
+};
 
 export default function VendorDashboardPage() {
-  const [data, setData] = useState<VendorDashboardResponse | null>(null);
+  const [stats, setStats] = useState({ openPOs: 0, submittedInvoices: 0, paidInvoices: 0, activeContracts: 0 });
+  const [recentPOs, setRecentPOs] = useState<any[]>([]);
+  const [recentInvoices, setRecentInvoices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const load = async () => {
+    const fetchDashboardData = async () => {
       try {
-        setLoading(true);
-        const resp = await vendorPortalService.getDashboard();
-        setData(resp);
+        const dashboardRes = await api.get('/vendorPortal/dashboard');
+        if (dashboardRes.data) {
+          setStats({
+            openPOs: dashboardRes.data.summary?.poCount || 0,
+            submittedInvoices: dashboardRes.data.summary?.submittedInvoiceCount || 0,
+            paidInvoices: dashboardRes.data.summary?.paidInvoiceCount || 0,
+            activeContracts: dashboardRes.data.summary?.contractSummary?.active || 0,
+          });
+          setRecentPOs(dashboardRes.data.pos || []);
+          setRecentInvoices(dashboardRes.data.invoices || []);
+        }
       } catch (err) {
-        console.error('Failed to load vendor dashboard', err);
+        console.error(err);
       } finally {
         setLoading(false);
       }
     };
-
-    load();
+    fetchDashboardData();
   }, []);
 
+  const statCards = [
+    { label: 'Open POs', value: stats.openPOs },
+    { label: 'Submitted Invoices', value: stats.submittedInvoices },
+    { label: 'Paid Invoices', value: stats.paidInvoices },
+    { label: 'Active Contracts', value: stats.activeContracts },
+  ];
+
   return (
-    <div className="p-6 text-white">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold">Vendor Dashboard</h1>
-        <p className="mt-1 text-slate-400">Track your POs, invoices and contracts in one place.</p>
-      </div>
-
-      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-        <div className="rounded-xl border border-white/10 bg-slate-900 p-4">
-          <p className="text-xs uppercase text-slate-400">My POs</p>
-          <p className="mt-2 text-3xl font-bold">{loading ? '...' : data?.summary.poCount ?? 0}</p>
-        </div>
-        <div className="rounded-xl border border-white/10 bg-slate-900 p-4">
-          <p className="text-xs uppercase text-slate-400">Submitted Invoices</p>
-          <p className="mt-2 text-3xl font-bold">{loading ? '...' : data?.summary.submittedInvoiceCount ?? 0}</p>
-        </div>
-        <div className="rounded-xl border border-white/10 bg-slate-900 p-4">
-          <p className="text-xs uppercase text-slate-400">Contracts (Active / Expiring / Expired)</p>
-          <p className="mt-2 text-2xl font-bold">
-            {loading
-              ? '...'
-              : `${data?.summary.contractSummary.active ?? 0} / ${data?.summary.contractSummary.expiringSoon ?? 0} / ${data?.summary.contractSummary.expired ?? 0}`}
-          </p>
-        </div>
-      </div>
-
-      <div className="mb-6 flex flex-wrap gap-3">
-        <Link to="/vendor/invoices/new" className="rounded-lg bg-violet-600 px-4 py-2 font-medium hover:bg-violet-500">
-          Submit New Invoice
-        </Link>
-        <Link to="/vendor/profile" className="rounded-lg border border-white/20 px-4 py-2 font-medium hover:bg-white/5">
-          Update Profile
-        </Link>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border border-white/10 bg-slate-900 p-4">
-          <h2 className="mb-3 text-lg font-semibold">Recent Purchase Orders</h2>
-          <div className="space-y-2">
-            {(data?.pos ?? []).slice(0, 5).map((po) => (
-              <div key={po.id} className="flex items-center justify-between rounded-lg border border-white/5 bg-slate-950 px-3 py-2">
-                <div>
-                  <p className="text-sm font-medium">{po.poNumber}</p>
-                  <p className="text-xs text-slate-400">{po.status}</p>
-                </div>
-                <p className="text-sm font-semibold">{po.totalAmount.toFixed(2)}</p>
+    <div className="page-root animate-in">
+      {/* Stat Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 28 }}>
+        {loading
+          ? Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="stat-card">
+                <div className="skeleton" style={{ height: 12, width: '60%', marginBottom: 16 }} />
+                <div className="skeleton" style={{ height: 36, width: '40%' }} />
               </div>
-            ))}
-            {(data?.pos.length ?? 0) === 0 && <p className="text-sm text-slate-400">No purchase orders yet.</p>}
+            ))
+          : statCards.map((card, i) => {
+              const accent = STAT_ACCENTS[i];
+              return (
+                <div key={card.label} className="stat-card" style={{ borderColor: accent.border, background: accent.bg, position: 'relative', overflow: 'hidden' }}>
+                  <div style={{ position: 'absolute', top: -20, right: -20, width: 70, height: 70, background: `radial-gradient(circle, ${accent.color}20, transparent 70%)`, pointerEvents: 'none' }} />
+                  <p className="stat-label" style={{ marginBottom: 10 }}>{card.label}</p>
+                  <p className="stat-value" style={{ color: accent.color }}>{card.value}</p>
+                </div>
+              );
+            })
+        }
+      </div>
+
+      {/* Quick actions */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 28 }}>
+        {[
+          { label: 'Submit an Invoice', href: '/vendor/invoices/new', color: '#10b981' },
+          { label: 'View My POs', href: '/vendor/pos', color: '#06b6d4' },
+          { label: 'View My Contracts', href: '/vendor/contracts', color: '#6366f1' },
+        ].map(({ label, href, color }) => (
+          <Link key={href} to={href} style={{
+            display: 'flex', alignItems: 'center', gap: 12,
+            padding: '14px 18px', background: 'var(--bg-card)',
+            border: '1px solid var(--border-dim)', borderRadius: 13,
+            fontSize: 13.5, fontWeight: 600, color: 'var(--text-secondary)',
+            textDecoration: 'none', transition: 'all 200ms',
+          }}
+          onMouseEnter={e => {
+            const el = e.currentTarget as HTMLElement;
+            el.style.borderColor = `${color}40`;
+            el.style.color = 'var(--text-primary)';
+            el.style.background = `${color}08`;
+          }}
+          onMouseLeave={e => {
+            const el = e.currentTarget as HTMLElement;
+            el.style.borderColor = 'var(--border-dim)';
+            el.style.color = 'var(--text-secondary)';
+            el.style.background = 'var(--bg-card)';
+          }}
+          >
+            <div style={{ width: 30, height: 30, borderRadius: 8, background: `${color}15`, border: `1px solid ${color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', color, fontSize: 16, flexShrink: 0 }}>→</div>
+            {label}
+          </Link>
+        ))}
+      </div>
+
+      {/* Recent tables */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+        {/* Recent POs */}
+        <div className="card" style={{ overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px 12px', borderBottom: '1px solid var(--border-dim)' }}>
+            <h2 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Recent POs</h2>
+            <Link to="/vendor/pos" style={{ fontSize: 12, fontWeight: 600, color: '#10b981' }}>View all →</Link>
+          </div>
+          <div style={{ padding: '8px 0' }}>
+            {recentPOs.length > 0 ? recentPOs.map((po: any) => (
+              <div key={po.id} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '10px 20px', borderBottom: '1px solid var(--border-dim)',
+                transition: 'background 150ms',
+              }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+              >
+                <div>
+                  <p style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 3px' }}>{po.poNumber}</p>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>Rs. {po.totalAmount?.toLocaleString('en-IN')}</p>
+                </div>
+                <span style={{
+                  fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 6,
+                  background: `${POStatusColor[po.status] || '#94a3b8'}15`,
+                  color: POStatusColor[po.status] || '#94a3b8',
+                  border: `1px solid ${POStatusColor[po.status] || '#94a3b8'}30`,
+                  textTransform: 'uppercase', letterSpacing: '0.04em',
+                }}>{po.status}</span>
+              </div>
+            )) : (
+              <p style={{ padding: '20px', fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>No recent purchase orders.</p>
+            )}
           </div>
         </div>
 
-        <div className="rounded-xl border border-white/10 bg-slate-900 p-4">
-          <h2 className="mb-3 text-lg font-semibold">Recent Invoices</h2>
-          <div className="space-y-2">
-            {(data?.invoices ?? []).slice(0, 5).map((invoice) => (
-              <div key={invoice.id} className="flex items-center justify-between rounded-lg border border-white/5 bg-slate-950 px-3 py-2">
+        {/* Recent Invoices */}
+        <div className="card" style={{ overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px 12px', borderBottom: '1px solid var(--border-dim)' }}>
+            <h2 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Recent Invoices</h2>
+            <Link to="/vendor/invoices/new" style={{ fontSize: 12, fontWeight: 600, color: '#06b6d4' }}>Submit new →</Link>
+          </div>
+          <div style={{ padding: '8px 0' }}>
+            {recentInvoices.length > 0 ? recentInvoices.map((inv: any) => (
+              <div key={inv.id} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '10px 20px', borderBottom: '1px solid var(--border-dim)',
+                transition: 'background 150ms',
+              }}
+              onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'}
+              onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
+              >
                 <div>
-                  <p className="text-sm font-medium">{invoice.invoiceNumber}</p>
-                  <p className="text-xs text-slate-400">PO: {invoice.po.poNumber}</p>
+                  <p style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 3px' }}>{inv.invoiceNumber}</p>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>Rs. {inv.amount?.toLocaleString('en-IN')}</p>
                 </div>
-                <p className="text-xs font-semibold text-slate-300">{invoice.status}</p>
+                <span style={{
+                  fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 6,
+                  background: `${InvStatusColor[inv.status] || '#94a3b8'}15`,
+                  color: InvStatusColor[inv.status] || '#94a3b8',
+                  border: `1px solid ${InvStatusColor[inv.status] || '#94a3b8'}30`,
+                  textTransform: 'uppercase', letterSpacing: '0.04em',
+                }}>{inv.status}</span>
               </div>
-            ))}
-            {(data?.invoices.length ?? 0) === 0 && <p className="text-sm text-slate-400">No invoices yet.</p>}
+            )) : (
+              <p style={{ padding: '20px', fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>No recent invoices.</p>
+            )}
           </div>
         </div>
       </div>

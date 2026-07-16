@@ -3,66 +3,151 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Role } from '../../store/authStore';
 import type { Contract } from '../../services/contracts';
 import RoleGate from '../../components/RoleGate';
+import { TableSkeleton } from '../../components/Skeletons';
 import AddContractModal from './AddContractModal';
 import { useContractsQuery } from '../../hooks/useContractsQuery';
+import EmptyState from '../../components/EmptyState';
 
 export default function ContractList() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const expiringSoonOnly = searchParams.get('expiringSoon') === '1';
+  const currentFilter = searchParams.get('filter') || (expiringSoonOnly ? 'expiring' : 'all');
 
-  const [statusFilter, setStatusFilter] = useState<string>('');
   const [searchVendor, setSearchVendor] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [pagination, setPagination] = useState({ page: 1, limit: 20 });
   const { data, isLoading, refetch } = useContractsQuery({
-    status: statusFilter || undefined,
     searchVendor: searchVendor || undefined,
     page: pagination.page,
     limit: pagination.limit,
-    expiringSoon: expiringSoonOnly,
+    filter: currentFilter !== 'all' ? currentFilter : undefined,
   });
 
   const contracts = data?.contracts ?? [];
   const paginationState = data?.pagination ?? { page: pagination.page, limit: pagination.limit, total: 0, pages: 1 };
+  const activeCount = contracts.filter((contract) => contract.status === 'ACTIVE').length;
+  const expiringCount = contracts.filter((contract) => contract.isExpiringSoon).length;
+  const expiredCount = contracts.filter((contract) => contract.isExpired).length;
 
   const getStatusBadge = (contract: Contract) => {
     if (contract.isExpired) {
-      return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-rose-500/20 text-rose-300 border border-rose-500/30">Expired</span>;
+      const days = Math.abs(contract.daysUntilExpiry);
+      return (
+        <span className="badge badge-rejected">
+          Expired {days} day{days === 1 ? '' : 's'} ago
+        </span>
+      );
     }
     if (contract.isExpiringSoon) {
-      return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-amber-500/20 text-amber-300 border border-amber-500/30">{contract.daysUntilExpiry} days left</span>;
+      return (
+        <span className="badge badge-pending">
+          Expires in {contract.daysUntilExpiry} day{contract.daysUntilExpiry === 1 ? '' : 's'}
+        </span>
+      );
     }
-    return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Active</span>;
+    return (
+      <span className="badge badge-active">
+        Expires in {contract.daysUntilExpiry} day{contract.daysUntilExpiry === 1 ? '' : 's'}
+      </span>
+    );
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      <div className="border-b border-white/5 px-8 py-5 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Contracts</h1>
-          <p className="text-slate-400 text-sm mt-1">Track all vendor agreements and expiry risk.</p>
+    <div className="page-root">
+      {/* Page Header */}
+      <div className="page-header" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <h1 className="page-title">Contracts</h1>
+          <p className="page-subtitle">Track vendor agreements, expiry risk, and the contracts that need attention now.</p>
           {expiringSoonOnly && (
-            <p className="mt-2 inline-flex items-center rounded-full border border-amber-400/30 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-200">
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', marginTop: '8px',
+              padding: '4px 12px', borderRadius: '999px',
+              border: '1px solid rgba(245,158,11,0.3)', background: 'rgba(245,158,11,0.1)',
+              fontSize: '11px', fontWeight: 500, color: '#fbbf24', width: 'fit-content'
+            }}>
               Showing expiring contracts sorted by nearest expiry
-            </p>
+            </span>
           )}
         </div>
+
+        {/* Stat Cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', maxWidth: '420px' }}>
+          <div className="stat-card">
+            <span className="stat-label">Total</span>
+            <span className="stat-value">{contracts.length}</span>
+          </div>
+          <div className="stat-card" style={{ borderColor: 'rgba(16,185,129,0.2)', background: 'rgba(16,185,129,0.08)' }}>
+            <span className="stat-label" style={{ color: 'rgba(52,211,153,0.8)' }}>Active</span>
+            <span className="stat-value" style={{ color: '#34d399' }}>{activeCount}</span>
+          </div>
+          <div className="stat-card" style={{ borderColor: 'rgba(245,158,11,0.2)', background: 'rgba(245,158,11,0.08)' }}>
+            <span className="stat-label" style={{ color: 'rgba(251,191,36,0.8)' }}>Attention</span>
+            <span className="stat-value" style={{ color: '#fbbf24' }}>{expiringCount + expiredCount}</span>
+          </div>
+        </div>
+
         <RoleGate roles={[Role.ADMIN, Role.PROCUREMENT]}>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="px-4 py-2.5 bg-linear-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 rounded-xl text-sm font-semibold"
-          >
+          <button onClick={() => setShowAddModal(true)} className="btn-primary" style={{ width: 'fit-content' }}>
             + New Contract
           </button>
         </RoleGate>
       </div>
 
-      <div className="px-8 py-6">
-      {/* Filters */}
-      <div className="mb-6 flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1 max-w-md">
-          <svg className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      {/* Filter Tabs */}
+      <div style={{
+        display: 'flex', gap: '24px', marginBottom: '8px',
+        borderBottom: '1px solid var(--border-dim)'
+      }}>
+        {[
+          { id: 'all', label: 'All' },
+          { id: 'expiring', label: 'Expiring Soon (\u226430 days)' },
+          { id: 'expired', label: 'Expired' },
+          { id: 'active', label: 'Active' },
+        ].map((tab) => {
+          const active = currentFilter === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => {
+                setSearchParams((prev) => {
+                  prev.set('filter', tab.id);
+                  prev.delete('expiringSoon');
+                  return prev;
+                });
+                setPagination((p) => ({ ...p, page: 1 }));
+              }}
+              style={{
+                paddingBottom: '14px',
+                fontSize: '13px',
+                fontWeight: 600,
+                position: 'relative',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: active ? '#06b6d4' : 'var(--text-muted)',
+                transition: 'color 0.15s',
+              }}
+            >
+              {tab.label}
+              {active && (
+                <span style={{
+                  position: 'absolute', bottom: 0, left: 0, right: 0,
+                  height: '2px', borderRadius: '2px',
+                  background: 'linear-gradient(90deg, #38bdf8, #06b6d4, #8b5cf6)'
+                }} />
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Search Filter */}
+      <div className="card-sm" style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', marginBottom: '16px' }}>
+        <div style={{ position: 'relative', flex: '1' }}>
+          <svg style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', width: '16px', height: '16px', color: 'var(--text-muted)' }}
+            fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
@@ -70,102 +155,84 @@ export default function ContractList() {
             placeholder="Search vendor..."
             value={searchVendor}
             onChange={(e) => setSearchVendor(e.target.value)}
-            className="w-full bg-white/5 border border-white/10 rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-violet-500 transition"
+            className="input-base"
+            style={{ paddingLeft: '38px', width: '100%', border: 'none', background: 'transparent', boxShadow: 'none' }}
           />
-        </div>
-        <div className="flex gap-2 flex-wrap">
-          {['', 'ACTIVE', 'EXPIRED', 'TERMINATED'].map((s) => (
-            <button
-              key={s}
-              onClick={() => setStatusFilter(s)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium border transition ${
-                statusFilter === s
-                  ? 'bg-violet-600 border-violet-500 text-white'
-                  : 'bg-white/5 border-white/10 text-slate-400 hover:text-white hover:bg-white/10'
-              }`}
-            >
-              {s || 'All'}
-            </button>
-          ))}
         </div>
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/3">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="bg-slate-900 border-b border-white/10">
-              <th className="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Contract Title</th>
-              <th className="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Vendor</th>
-              <th className="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">End Date</th>
-              <th className="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Status</th>
-              <th className="px-6 py-3.5 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
+      {isLoading ? (
+        <TableSkeleton rows={5} cols={6} />
+      ) : contracts.length === 0 ? (
+        <EmptyState
+          title="No contracts found"
+          description="Upload a contract to track vendor agreements, expiry risk, and renewals."
+          actionLabel="Upload a contract"
+          onAction={() => setShowAddModal(true)}
+        />
+      ) : (
+        <div className="card" style={{ padding: 0, overflow: 'hidden', overflowX: 'auto' }}>
+          <table className="data-table">
+            <thead>
               <tr>
-                <td colSpan={5} className="px-6 py-6 text-center text-slate-400">
-                  Loading...
-                </td>
+                <th>Contract Title</th>
+                <th>Vendor</th>
+                <th>End Date</th>
+                <th>Status</th>
+                <th>Action</th>
               </tr>
-            ) : contracts.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-6 py-6 text-center text-slate-400">
-                  No contracts found
-                </td>
-              </tr>
-            ) : (
-              contracts.map((contract) => (
+            </thead>
+            <tbody>
+              {contracts.map((contract) => (
                 <tr
                   key={contract.id}
-                  className="border-t border-white/5 cursor-pointer hover:bg-white/5 transition"
+                  style={{ cursor: 'pointer' }}
                   onClick={() => navigate(`/contracts/${contract.id}`)}
                 >
-                  <td className="px-6 py-4 text-sm text-white font-medium">{contract.title}</td>
-                  <td className="px-6 py-4 text-sm text-slate-300">{contract.vendor.companyName}</td>
-                  <td className="px-6 py-4 text-sm text-slate-300">
-                    {new Date(contract.endDate).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 text-sm">{getStatusBadge(contract)}</td>
-                  <td className="px-6 py-4 text-sm" onClick={(e) => e.stopPropagation()}>
+                  <td style={{ color: 'var(--text-primary)', fontWeight: 500 }}>{contract.title}</td>
+                  <td>{contract.vendor.companyName}</td>
+                  <td>{new Date(contract.endDate).toLocaleDateString()}</td>
+                  <td>{getStatusBadge(contract)}</td>
+                  <td onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => navigate(`/contracts/${contract.id}`)}
-                      className="text-violet-400 hover:text-violet-300 font-medium text-xs"
+                      style={{ color: '#a78bfa', fontWeight: 600, fontSize: '12px', background: 'none', border: 'none', cursor: 'pointer' }}
                     >
-                      View →
+                      View &rarr;
                     </button>
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Pagination */}
       {paginationState.pages > 1 && (
-        <div className="mt-6 flex items-center justify-center gap-2">
+        <div style={{ marginTop: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
           <button
             onClick={() => setPagination((current) => ({ ...current, page: Math.max(1, current.page - 1) }))}
             disabled={paginationState.page === 1}
-            className="px-3 py-2 border border-white/15 rounded-lg disabled:opacity-50 hover:bg-white/5"
+            className="btn-secondary"
+            style={{ opacity: paginationState.page === 1 ? 0.4 : 1 }}
           >
             Previous
           </button>
-          <span className="text-sm text-slate-300">
+          <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
             Page {paginationState.page} of {paginationState.pages}
           </span>
           <button
             onClick={() => setPagination((current) => ({ ...current, page: Math.min(paginationState.pages, current.page + 1) }))}
             disabled={paginationState.page === paginationState.pages}
-            className="px-3 py-2 border border-white/15 rounded-lg disabled:opacity-50 hover:bg-white/5"
+            className="btn-secondary"
+            style={{ opacity: paginationState.page === paginationState.pages ? 0.4 : 1 }}
           >
             Next
           </button>
         </div>
       )}
-      </div>
 
       {/* Add Contract Modal */}
       {showAddModal && <AddContractModal onClose={() => setShowAddModal(false)} onSuccess={async () => {

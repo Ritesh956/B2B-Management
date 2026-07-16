@@ -88,28 +88,39 @@ export default function AddContractModal({ onClose, onSuccess }: AddContractModa
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-md w-full max-h-96 overflow-y-auto">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-50">New Contract</h2>
+    <div className="modal-backdrop">
+      <div className="modal-box" style={{ maxWidth: '480px', width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
+        {/* Modal Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '20px 24px', borderBottom: '1px solid var(--border-dim)'
+        }}>
+          <h2 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>New Contract</h2>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-900 dark:hover:text-gray-50"
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer',
+              color: 'var(--text-muted)', fontSize: '18px', lineHeight: 1,
+              padding: '4px', borderRadius: '6px', transition: 'color 0.15s'
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--text-primary)')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--text-muted)')}
           >
-            ✕
+            &#x2715;
           </button>
         </div>
 
-        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
           {/* Vendor Selector */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               Vendor
             </label>
             <select
               {...register('vendorId')}
               disabled={vendorsLoading}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="input-base"
+              style={{ width: '100%' }}
             >
               <option value="">Select a vendor...</option>
               {vendors.map((vendor) => (
@@ -118,79 +129,85 @@ export default function AddContractModal({ onClose, onSuccess }: AddContractModa
                 </option>
               ))}
             </select>
-            {errors.vendorId && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.vendorId.message}</p>}
+            {errors.vendorId && <p style={{ marginTop: '4px', fontSize: '12px', color: '#f87171' }}>{errors.vendorId.message}</p>}
           </div>
 
           {/* Title */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               Contract Title
             </label>
             <input
               {...register('title')}
               type="text"
               placeholder="e.g., Service Agreement 2024"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="input-base"
+              style={{ width: '100%' }}
             />
-            {errors.title && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.title.message}</p>}
+            {errors.title && <p style={{ marginTop: '4px', fontSize: '12px', color: '#f87171' }}>{errors.title.message}</p>}
           </div>
 
           {/* Start Date */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               Start Date
             </label>
             <input
               {...register('startDate')}
               type="date"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="input-base"
+              style={{ width: '100%' }}
             />
-            {errors.startDate && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.startDate.message}</p>}
+            {errors.startDate && <p style={{ marginTop: '4px', fontSize: '12px', color: '#f87171' }}>{errors.startDate.message}</p>}
           </div>
 
           {/* End Date */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               End Date
             </label>
             <input
               {...register('endDate')}
               type="date"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="input-base"
+              style={{ width: '100%' }}
             />
-            {errors.endDate && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.endDate.message}</p>}
+            {errors.endDate && <p style={{ marginTop: '4px', fontSize: '12px', color: '#f87171' }}>{errors.endDate.message}</p>}
           </div>
 
           {/* PDF Upload */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--text-muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               Contract PDF (optional)
             </label>
             <input
               {...register('contractPdf')}
               type="file"
               accept=".pdf"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="input-base"
+              style={{ width: '100%' }}
             />
             {filePreview && (
-              <p className="mt-1 text-xs text-green-600 dark:text-green-400">✓ File selected: {selectedFile?.name}</p>
+              <p style={{ marginTop: '4px', fontSize: '12px', color: '#34d399' }}>&#10003; File selected: {selectedFile?.name}</p>
             )}
-            {errors.contractPdf && <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.contractPdf.message}</p>}
+            {errors.contractPdf && <p style={{ marginTop: '4px', fontSize: '12px', color: '#f87171' }}>{errors.contractPdf.message}</p>}
           </div>
 
           {/* Actions */}
-          <div className="flex gap-3 pt-4">
+          <div style={{ display: 'flex', gap: '12px', paddingTop: '8px' }}>
             <button
               type="submit"
               disabled={submitting}
-              className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition font-medium"
+              className="btn-primary"
+              style={{ flex: 1, opacity: submitting ? 0.6 : 1 }}
             >
               {submitting ? 'Creating...' : 'Create Contract'}
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 bg-gray-300 dark:bg-gray-600 text-gray-900 dark:text-gray-50 px-4 py-2 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-700 transition font-medium"
+              className="btn-secondary"
+              style={{ flex: 1 }}
             >
               Cancel
             </button>

@@ -7,6 +7,6 @@ describe('App routing', () => {
 
     const view = render(<App />);
 
-    expect(await view.findByText('Sign in to your account')).toBeInTheDocument();
+    expect(await view.findByText('Welcome back')).toBeInTheDocument();
   });
 });

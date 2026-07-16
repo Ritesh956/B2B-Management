@@ -3,14 +3,8 @@ import { Link, useParams } from 'react-router-dom';
 import { invoiceService } from '../../services/invoices';
 import { useAuthStore, Role } from '../../store/authStore';
 import { useInvoiceQuery } from '../../hooks/useInvoicesQuery';
-
-const STATUS_STYLE: Record<string, string> = {
-  SUBMITTED: 'bg-slate-500/20 text-slate-300 border border-slate-500/30',
-  MATCHED: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30',
-  MISMATCHED: 'bg-amber-500/15 text-amber-400 border border-amber-500/30',
-  APPROVED: 'bg-blue-500/15 text-blue-300 border border-blue-500/30',
-  PAID: 'bg-green-500/20 text-green-300 border border-green-500/30',
-};
+import ActivityFeed from '../../components/ActivityFeed';
+import { DetailPageSkeleton } from '../../components/Skeletons';
 
 export default function InvoiceDetail() {
   const { id } = useParams<{ id: string }>();
@@ -46,16 +40,16 @@ export default function InvoiceDetail() {
     }
   };
 
-  if (isLoading) {
-    return <div className="min-h-screen bg-slate-950 flex items-center justify-center"><div className="w-8 h-8 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" /></div>;
-  }
+  if (isLoading) return <DetailPageSkeleton />;
 
   if (error || !invoice) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-red-400 text-lg font-semibold">{error || 'Invoice not found'}</p>
-          <Link to="/invoices" className="mt-4 inline-block text-violet-400 hover:text-violet-300 text-sm">&lt;- Back to Invoices</Link>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-base)' }}>
+        <div className="card" style={{ textAlign: 'center', maxWidth: '400px' }}>
+          <p style={{ fontSize: '15px', fontWeight: 600, color: '#ef4444' }}>{error || 'Invoice not found'}</p>
+          <Link to="/invoices" className="btn-ghost" style={{ marginTop: '16px', display: 'inline-block', textDecoration: 'none' }}>
+            ← Back to Invoices
+          </Link>
         </div>
       </div>
     );
@@ -66,75 +60,115 @@ export default function InvoiceDetail() {
   const canPay = isFinance && invoice.status === 'APPROVED';
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white">
-      <div className="border-b border-white/5 px-8 py-5 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link to="/invoices" className="text-slate-400 hover:text-white">&lt;-</Link>
-          <div>
-            <h1 className="text-2xl font-bold">{invoice.invoiceNumber}</h1>
-            <p className="text-slate-400 text-sm">Linked PO: {invoice.po.poNumber}</p>
+    <div className="page-root">
+      {/* Header */}
+      <div className="surface" style={{ padding: '24px 32px', borderRadius: '16px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <Link to="/invoices" className="btn-ghost" style={{ padding: '8px 12px', textDecoration: 'none', fontSize: '16px' }}>←</Link>
+            <div>
+              <h1 className="page-title" style={{ margin: 0 }}>{invoice.invoiceNumber}</h1>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                Linked PO: {invoice.po.poNumber}
+              </p>
+            </div>
           </div>
+          <span className={`badge badge-${invoice.status.toLowerCase()}`}>{invoice.status}</span>
         </div>
-        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${STATUS_STYLE[invoice.status] || STATUS_STYLE.SUBMITTED}`}>{invoice.status}</span>
       </div>
 
-      <div className="px-8 py-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white/3 border border-white/5 rounded-2xl p-6">
-            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Linked PO Summary</h2>
-            <div className="grid grid-cols-2 gap-4 text-sm">
+      {/* Main grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px', alignItems: 'start', marginTop: '24px' }}>
+        {/* Left column */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          {/* Linked PO Summary */}
+          <div className="card">
+            <h2 style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '16px' }}>
+              Linked PO Summary
+            </h2>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              {[
+                { label: 'PO Number', value: invoice.po.poNumber },
+                { label: 'PO Total', value: `Rs. ${invoice.po.totalAmount.toLocaleString('en-IN')}` },
+                { label: 'Invoice Amount', value: `Rs. ${invoice.amount.toLocaleString('en-IN')}` },
+              ].map(({ label, value }) => (
+                <div key={label}>
+                  <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{label}</p>
+                  <p style={{ fontSize: '13px', color: 'var(--text-primary)', marginTop: '2px' }}>{value}</p>
+                </div>
+              ))}
               <div>
-                <p className="text-slate-500">PO Number</p>
-                <p className="text-white">{invoice.po.poNumber}</p>
-              </div>
-              <div>
-                <p className="text-slate-500">PO Total</p>
-                <p className="text-white">Rs. {invoice.po.totalAmount.toLocaleString('en-IN')}</p>
-              </div>
-              <div>
-                <p className="text-slate-500">Invoice Amount</p>
-                <p className="text-white">Rs. {invoice.amount.toLocaleString('en-IN')}</p>
-              </div>
-              <div>
-                <p className="text-slate-500">Amount Difference</p>
-                <p className={`font-semibold ${invoice.amountDiff === 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Amount Difference</p>
+                <p style={{
+                  fontSize: '13px', fontWeight: 600, marginTop: '2px',
+                  color: invoice.amountDiff === 0 ? '#10b981' : '#f59e0b'
+                }}>
                   Rs. {invoice.amountDiff.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
               </div>
             </div>
 
             {invoice.status === 'MISMATCHED' && (
-              <div className="mt-4 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30">
-                <p className="text-sm text-amber-300 font-medium">Mismatch warning</p>
-                <p className="text-xs text-amber-200 mt-1">
-                  Invoice amount differs from PO total by Rs. {Math.abs(invoice.amountDiff).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <div style={{ marginTop: '16px', padding: '12px', borderRadius: '8px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}>
+                <p style={{ fontSize: '13px', color: '#f59e0b', fontWeight: 500 }}>Mismatch warning</p>
+                <p style={{ fontSize: '12px', color: '#fcd34d', marginTop: '4px' }}>
+                  Invoice amount differs from PO total by Rs.{' '}
+                  {Math.abs(invoice.amountDiff).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
               </div>
             )}
           </div>
 
-          <div className="bg-white/3 border border-white/5 rounded-2xl p-6">
-            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">Invoice PDF Preview</h2>
+          {/* Invoice PDF Preview */}
+          <div className="card">
+            <h2 style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '16px' }}>
+              Invoice PDF Preview
+            </h2>
             {invoice.fileUrl ? (
               <iframe
                 src={invoice.fileUrl}
                 title="Invoice PDF Preview"
-                className="w-full h-130 rounded-xl border border-white/10 bg-slate-900"
+                style={{
+                  width: '100%', height: '520px', borderRadius: '10px',
+                  border: '1px solid var(--border-dim)', background: 'var(--bg-card)'
+                }}
               />
             ) : (
-              <p className="text-slate-500 text-sm">No invoice file uploaded</p>
+              <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>No invoice file uploaded</p>
             )}
           </div>
         </div>
 
-        <div className="space-y-6">
-          <div className="bg-white/3 border border-white/5 rounded-2xl p-6 space-y-4">
-            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Invoice Actions</h2>
+        {/* Right column */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          {/* Invoice Actions */}
+          <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <h2 style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Invoice Actions
+            </h2>
+
+            {error && (
+              <p style={{ fontSize: '12px', color: '#ef4444', padding: '8px 12px', background: 'rgba(239,68,68,0.08)', borderRadius: '8px' }}>
+                {error}
+              </p>
+            )}
 
             <button
               onClick={onApprove}
               disabled={!canApprove || actionLoading}
-              className="w-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 rounded-xl text-sm font-semibold"
+              style={{
+                width: '100%',
+                padding: '12px',
+                borderRadius: '8px',
+                border: 'none',
+                fontWeight: 600,
+                fontSize: '13px',
+                cursor: canApprove ? 'pointer' : 'not-allowed',
+                background: canApprove ? 'var(--accent-success)' : 'rgba(255,255,255,0.05)',
+                color: canApprove ? '#fff' : 'var(--text-muted)',
+                transition: 'all 0.2s',
+                boxShadow: canApprove ? '0 4px 15px rgba(16,185,129,0.2)' : 'none'
+              }}
             >
               Approve Invoice
             </button>
@@ -142,16 +176,32 @@ export default function InvoiceDetail() {
             <button
               onClick={onPay}
               disabled={!canPay || actionLoading}
-              className="w-full px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-xl text-sm font-semibold"
+              style={{
+                width: '100%',
+                padding: '12px',
+                borderRadius: '8px',
+                border: 'none',
+                fontWeight: 600,
+                fontSize: '13px',
+                cursor: canPay ? 'pointer' : 'not-allowed',
+                background: canPay ? 'var(--accent-secondary)' : 'rgba(255,255,255,0.05)',
+                color: canPay ? '#fff' : 'var(--text-muted)',
+                transition: 'all 0.2s',
+                boxShadow: canPay ? '0 4px 15px rgba(6,182,212,0.2)' : 'none'
+              }}
             >
               Mark as Paid
             </button>
 
-            {isFinance ? (
-              <p className="text-xs text-slate-500">Finance can approve only MATCHED invoices and pay only APPROVED invoices.</p>
-            ) : (
-              <p className="text-xs text-slate-500">Only finance users can approve or mark payment.</p>
-            )}
+            <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+              {isFinance
+                ? 'Finance can approve only MATCHED invoices and pay only APPROVED invoices.'
+                : 'Only finance users can approve or mark payment.'}
+            </p>
+          </div>
+
+          <div style={{ height: '384px' }}>
+            <ActivityFeed entity="Invoice" entityId={id!} />
           </div>
         </div>
       </div>

@@ -2,17 +2,21 @@ import { Response } from 'express';
 import { POStatus, Role } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { AuthRequest } from '../middlewares/authenticate';
-import approvalService from '../services/approvalService.js';
-import { enqueueEmail, enqueueNotification } from '../queues';
-import { generatePO } from '../services/poPdf';
-
-const {
+import {
+  APPROVAL_STEP_STATUS,
   createApprovalChain,
+  getCurrentApproverRole,
+  isCurrentApprover,
   approveState,
   rejectState,
-  getCurrentApproverRole,
   toApprovalProgress,
-} = approvalService as any;
+} from '../services/approvalService';
+import { enqueueEmail } from '../queues';
+import { generatePO } from '../services/poPdf';
+import { stringify } from 'csv-stringify/sync';
+import { notifyUser } from '../utils/notify';
+
+const { PENDING, APPROVED, REJECTED } = APPROVAL_STEP_STATUS;
 
 type LineItemInput = {
   description: string;
@@ -144,12 +148,27 @@ export const listPOs = async (req: AuthRequest, res: Response): Promise<void> =>
       return;
     }
 
-    const { status } = req.query as { status?: string };
+    const { status, vendorId, minAmount, maxAmount, fromDate, toDate, createdById } = req.query as Record<string, string>;
     const where: any = {};
 
-    if (status && Object.values(POStatus).includes(status as POStatus)) {
-      where.status = status as POStatus;
+    // Support comma-separated multiple statuses
+    if (status) {
+      const statuses = status.split(',').filter(s => Object.values(POStatus).includes(s as POStatus)) as POStatus[];
+      if (statuses.length === 1) where.status = statuses[0];
+      else if (statuses.length > 1) where.status = { in: statuses };
     }
+    if (vendorId) where.vendorId = vendorId;
+    if (minAmount || maxAmount) {
+      where.totalAmount = {};
+      if (minAmount) where.totalAmount.gte = parseFloat(minAmount);
+      if (maxAmount) where.totalAmount.lte = parseFloat(maxAmount);
+    }
+    if (fromDate || toDate) {
+      where.createdAt = {};
+      if (fromDate) where.createdAt.gte = new Date(fromDate);
+      if (toDate) where.createdAt.lte = new Date(toDate);
+    }
+    if (createdById) where.createdById = createdById;
 
     if (req.user.role === Role.PROCUREMENT) {
       where.createdById = req.user.id;
@@ -199,7 +218,6 @@ export const getPOById = async (req: AuthRequest, res: Response): Promise<void> 
             amount: true,
           },
           orderBy: { submittedAt: 'desc' },
-          take: 1,
         },
       },
     });
@@ -222,7 +240,34 @@ export const getPOById = async (req: AuthRequest, res: Response): Promise<void> 
       }
     }
 
-    res.status(200).json({ po: mapPO(po) });
+    const invoicesWithPaidDate = await Promise.all(
+      po.invoices.map(async (invoice) => {
+        let paidAt: Date | null = null;
+        if (invoice.status === 'PAID') {
+          const log = await prisma.auditLog.findFirst({
+            where: {
+              entity: 'Invoice',
+              entityId: invoice.id,
+              action: 'PAY',
+            },
+            select: { createdAt: true },
+          });
+          paidAt = log?.createdAt ?? null;
+        }
+        return {
+          ...invoice,
+          paidAt,
+        };
+      })
+    );
+
+    const mappedPo = {
+      ...mapPO(po),
+      invoices: invoicesWithPaidDate,
+      rejectedAt: normalizeApprovalChain(po.approvalChain).rejectedAt ?? null,
+    };
+
+    res.status(200).json({ po: mappedPo });
   } catch (err) {
     console.error('[getPOById]', err);
     res.status(500).json({ error: 'Failed to fetch purchase order' });
@@ -345,17 +390,11 @@ export const approvePO = async (req: AuthRequest, res: Response): Promise<void> 
 
       const queueTasks: Promise<unknown>[] = [];
       queueTasks.push(
-        enqueueNotification({
-          userId: po.createdById,
-          message: `PO ${po.poNumber} approved successfully`,
-        })
+        notifyUser(po.createdById, `PO ${po.poNumber} approved successfully`, 'INFO')
       );
       if (vendorUser?.id) {
         queueTasks.push(
-          enqueueNotification({
-            userId: vendorUser.id,
-            message: `PO ${po.poNumber} has been approved`,
-          })
+          notifyUser(vendorUser.id, `PO ${po.poNumber} has been approved`, 'INFO')
         );
       }
 
@@ -434,10 +473,7 @@ export const rejectPO = async (req: AuthRequest, res: Response): Promise<void> =
     });
 
     await Promise.allSettled([
-      enqueueNotification({
-        userId: po.createdById,
-        message: `PO ${po.poNumber} was rejected${reason?.trim() ? `: ${reason.trim()}` : ''}`,
-      }),
+      notifyUser(po.createdById, `PO ${po.poNumber} was rejected${reason?.trim() ? `: ${reason.trim()}` : ''}`, 'INFO'),
       enqueueEmail({
         to: po.createdBy.email,
         subject: `PO ${po.poNumber} rejected`,
@@ -454,3 +490,58 @@ export const rejectPO = async (req: AuthRequest, res: Response): Promise<void> =
     res.status(400).json({ error: msg });
   }
 };
+
+export const exportPOs = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Not authenticated' });
+      return;
+    }
+
+    const { status } = req.query as { status?: string };
+    const where: any = {};
+
+    if (status && Object.values(POStatus).includes(status as POStatus)) {
+      where.status = status as POStatus;
+    }
+
+    if (req.user.role === Role.PROCUREMENT) {
+      where.createdById = req.user.id;
+    }
+
+    if (req.user.role === Role.VENDOR) {
+      const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });
+      where.vendor = { email: user?.email ?? '__none__' };
+    }
+
+    const pos = await prisma.purchaseOrder.findMany({
+      where,
+      include: {
+        vendor: { select: { companyName: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    
+    const mapped = pos.map(mapPO);
+
+    const csvData = stringify(
+      mapped.map((po) => [
+        po.poNumber,
+        po.vendor.companyName,
+        po.totalAmount,
+        po.status,
+        po.currentApproverRole ?? '',
+        new Date(po.createdAt).toLocaleDateString('en-IN'),
+      ]),
+      { header: true, columns: ['PO Number', 'Vendor', 'Total', 'Status', 'Current Approver', 'Created'] }
+    );
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="purchase-orders.csv"');
+    res.send(csvData);
+  } catch (err) {
+    console.error('[exportPOs]', err);
+    res.status(500).json({ error: 'Failed to export purchase orders' });
+  }
+};
+

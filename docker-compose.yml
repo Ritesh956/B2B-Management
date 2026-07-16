@@ -2,15 +2,13 @@ version: '3.9'
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:15
     container_name: vendor-platform-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: vendor_platform
-    ports:
-      - '5432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -23,8 +21,6 @@ services:
     image: redis:7-alpine
     container_name: vendor-platform-redis
     restart: unless-stopped
-    ports:
-      - '6379:6379'
     volumes:
       - redis_data:/data
     healthcheck:
@@ -44,30 +40,13 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    environment:
-      PORT: 5000
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/vendor_platform?schema=public
-      REDIS_URL: redis://redis:6379
-      JWT_SECRET: your_super_secret_jwt_key_change_in_production
-      AWS_ACCESS_KEY_ID: your_aws_access_key
-      AWS_SECRET_ACCESS_KEY: your_aws_secret_key
-      AWS_REGION: us-east-1
-      AWS_S3_BUCKET: your-bucket-name
-      SMTP_HOST: smtp.gmail.com
-      SMTP_PORT: 587
-      SMTP_USER: your_email@gmail.com
-      SMTP_PASS: your_email_password
-      EMAIL_FROM: noreply@vendor-platform.local
-    ports:
-      - '5000:5000'
-    volumes:
-      - ./server:/app
-      - /app/node_modules
+    env_file:
+      - ./server/.env.production
     healthcheck:
-      test: ['CMD-SHELL', 'node -e "fetch(\"http://localhost:5000/health\").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"']
+      test: ['CMD-SHELL', 'node -e "fetch(\"http://localhost:5000/api/v1/health\").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"']
       interval: 15s
       timeout: 10s
-      retries: 8
+      retries: 5
 
   client:
     build:
@@ -78,18 +57,18 @@ services:
     depends_on:
       server:
         condition: service_healthy
-    environment:
-      VITE_API_URL: http://localhost:5000/api
+
+  nginx:
+    image: nginx:alpine
+    container_name: vendor-platform-nginx
+    restart: unless-stopped
     ports:
-      - '5173:5173'
+      - '80:80'
     volumes:
-      - ./client:/app
-      - /app/node_modules
-    healthcheck:
-      test: ['CMD-SHELL', 'node -e "fetch(\"http://localhost:5173\").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"']
-      interval: 15s
-      timeout: 10s
-      retries: 8
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - server
+      - client
 
 volumes:
   postgres_data:

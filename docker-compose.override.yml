@@ -1,0 +1,39 @@
+version: '3.9'
+
+services:
+  postgres:
+    ports:
+      - '5432:5432'
+
+  redis:
+    ports:
+      - '6379:6379'
+
+  server:
+    ports:
+      - '5000:5000'
+    volumes:
+      - ./server:/app
+      - /app/node_modules
+    env_file:
+      - ./server/.env
+    # override healthcheck for dev if needed
+    healthcheck:
+      test: ['CMD-SHELL', 'node -e "fetch(\"http://localhost:5000/api/v1/health\").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"']
+
+  client:
+    build:
+      target: build
+    ports:
+      - '5173:5173'
+    volumes:
+      - ./client:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:5000/api/v1
+    command: npm run dev
+
+  nginx:
+    # Optional in dev override if you just want to hit client directly on 5173
+    profiles:
+      - donotstart

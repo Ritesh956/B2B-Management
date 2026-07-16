@@ -6,6 +6,7 @@ export interface DashboardStats {
   posPendingMyApproval: number;
   invoicesPendingReview: number;
   contractsExpiringThisMonth: number;
+  spendByMonth: ChartPoint[];
 }
 
 export interface ChartPoint {
@@ -38,6 +39,7 @@ export interface TopVendorByPOValueItem {
 export interface OldestPendingPOItem {
   id: string;
   poNumber: string;
+  vendorName: string;
   createdAt: string;
   daysWaiting: number;
 }
@@ -87,6 +89,7 @@ const dashboardResponseSchema: z.ZodType<DashboardResponse> = z.object({
     posPendingMyApproval: z.number(),
     invoicesPendingReview: z.number(),
     contractsExpiringThisMonth: z.number(),
+    spendByMonth: z.array(chartPointSchema),
   }),
   charts: z.object({
     poVolumeByMonth: z.array(chartPointSchema),
@@ -105,6 +108,7 @@ const dashboardResponseSchema: z.ZodType<DashboardResponse> = z.object({
     .object({
       id: z.string(),
       poNumber: z.string(),
+      vendorName: z.string(),
       createdAt: z.string(),
       daysWaiting: z.number(),
     })
@@ -115,4 +119,29 @@ const dashboardResponseSchema: z.ZodType<DashboardResponse> = z.object({
 export const dashboardService = {
   getStats: () =>
     api.get('/dashboard/stats').then((r) => parseApiResponse(dashboardResponseSchema, r.data)),
+
+  getTopVendors: () =>
+    api
+      .get('/dashboard/top-vendors')
+      .then((r) => parseApiResponse(z.object({ vendors: z.array(z.object({
+        vendorId: z.string(),
+        vendorName: z.string(),
+        totalSpend: z.number(),
+        poCount: z.number(),
+      })) }), r.data)),
+
+  getOldestPendingPO: () =>
+    api
+      .get('/dashboard/oldest-pending')
+      .then((r) => parseApiResponse(z.object({
+        oldestPendingPO: z
+          .object({
+            id: z.string(),
+            poNumber: z.string(),
+            vendorName: z.string(),
+            createdAt: z.string(),
+            daysWaiting: z.number(),
+          })
+          .nullable(),
+      }), r.data)),
 };

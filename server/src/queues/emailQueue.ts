@@ -39,10 +39,22 @@ emailQueue.on('failed', (job, err) => {
   console.error(`[emailQueue] Job ${job?.id} failed`, err);
 });
 
+import { prisma } from '../config/prisma';
+
 export const enqueueEmail = async (payload: SendEmailJob): Promise<void> => {
   if (!(await isRedisAvailable())) {
     console.warn('[emailQueue] Redis unavailable, skipping email enqueue');
     return;
+  }
+
+  // Check notification preferences if sending to a user email
+  const user = await prisma.user.findUnique({ where: { email: payload.to } });
+  if (user && user.notificationPreferences) {
+    const prefs = user.notificationPreferences as any;
+    if (prefs.email === false) {
+      console.log(`[emailQueue] Skipping email to ${payload.to} due to notification preferences`);
+      return;
+    }
   }
 
   await emailQueue.add('sendEmail', payload, {

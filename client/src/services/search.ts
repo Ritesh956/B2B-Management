@@ -1,31 +1,71 @@
 import { z } from 'zod';
 import api, { parseApiResponse } from './api';
 
-export type SearchResultType = 'Vendor' | 'PurchaseOrder' | 'Invoice';
-
-export interface GlobalSearchResult {
-  type: SearchResultType;
+export interface SearchVendor {
   id: string;
-  title: string;
-  subtitle: string;
-  href: string;
+  companyName: string;
+  status: string;
 }
 
-const globalSearchResultSchema: z.ZodType<GlobalSearchResult> = z.object({
-  type: z.enum(['Vendor', 'PurchaseOrder', 'Invoice']),
+export interface SearchPO {
+  id: string;
+  poNumber: string;
+  status: string;
+}
+
+export interface SearchInvoice {
+  id: string;
+  invoiceNumber: string;
+  status: string;
+}
+
+export interface SearchContract {
+  id: string;
+  title: string;
+  status: string;
+}
+
+export interface CategorizedSearchResponse {
+  vendors: SearchVendor[];
+  purchaseOrders: SearchPO[];
+  invoices: SearchInvoice[];
+  contracts: SearchContract[];
+}
+
+const searchVendorSchema = z.object({
   id: z.string(),
-  title: z.string(),
-  subtitle: z.string(),
-  href: z.string(),
+  companyName: z.string(),
+  status: z.string(),
 });
 
-const globalSearchResponseSchema = z.object({
-  results: z.array(globalSearchResultSchema),
+const searchPOSchema = z.object({
+  id: z.string(),
+  poNumber: z.string(),
+  status: z.string(),
+});
+
+const searchInvoiceSchema = z.object({
+  id: z.string(),
+  invoiceNumber: z.string(),
+  status: z.string(),
+});
+
+const searchContractSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  status: z.string(),
+});
+
+const categorizedSearchResponseSchema = z.object({
+  vendors: z.array(searchVendorSchema),
+  purchaseOrders: z.array(searchPOSchema),
+  invoices: z.array(searchInvoiceSchema),
+  contracts: z.array(searchContractSchema),
 });
 
 export const searchService = {
   globalSearch: (query: string) =>
     api
-      .get('/search', { params: { query } })
-      .then((r) => parseApiResponse(globalSearchResponseSchema, r.data)),
+      .get('/search', { params: { q: query } })
+      .then((r) => parseApiResponse(categorizedSearchResponseSchema, r.data)),
 };

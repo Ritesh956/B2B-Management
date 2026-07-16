@@ -65,22 +65,41 @@ export default function SubmitInvoiceModal({ onClose, onSubmitted }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-xl bg-slate-900 border border-white/10 rounded-2xl shadow-2xl">
-        <div className="px-6 py-5 border-b border-white/10 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">Submit Invoice</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white">✕</button>
+    <div className="modal-backdrop">
+      <div className="modal-box" style={{ maxWidth: '520px' }}>
+        {/* Header */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '20px 24px', borderBottom: '1px solid var(--border-dim)'
+        }}>
+          <h2 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>
+            Submit Invoice
+          </h2>
+          <button
+            onClick={onClose}
+            style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', fontSize: '18px', lineHeight: 1 }}
+          >
+            ✕
+          </button>
         </div>
 
-        <div className="p-6 space-y-4">
-          {error && <p className="text-sm text-red-400">{error}</p>}
+        {/* Body */}
+        <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '18px' }}>
+          {error && (
+            <p style={{ fontSize: '13px', color: '#ef4444', padding: '10px 14px', background: 'rgba(239,68,68,0.08)', borderRadius: '8px', border: '1px solid rgba(239,68,68,0.2)' }}>
+              {error}
+            </p>
+          )}
 
+          {/* PO Select */}
           <div>
-            <label className="block text-sm text-slate-300 mb-2">Purchase Order</label>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>
+              Purchase Order
+            </label>
             <select
               value={poId}
               onChange={(e) => setPoId(e.target.value)}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white"
+              className="input-base"
             >
               <option value="">Select PO</option>
               {pos.map((po) => (
@@ -88,41 +107,46 @@ export default function SubmitInvoiceModal({ onClose, onSubmitted }: Props) {
               ))}
             </select>
             {selectedPO && (
-              <p className="mt-2 text-xs text-slate-500">PO Total: ₹ {selectedPO.totalAmount.toLocaleString('en-IN')}</p>
+              <p style={{ marginTop: '6px', fontSize: '11px', color: 'var(--text-muted)' }}>
+                PO Total: ₹ {selectedPO.totalAmount.toLocaleString('en-IN')}
+              </p>
             )}
           </div>
 
+          {/* Invoice Amount */}
           <div>
-            <label className="block text-sm text-slate-300 mb-2">Invoice Amount</label>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>
+              Invoice Amount
+            </label>
             <input
               type="number"
               min={0}
               step="0.01"
               value={amount || ''}
               onChange={(e) => setAmount(Number(e.target.value))}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white"
+              className="input-base"
               placeholder="Enter amount"
             />
           </div>
 
+          {/* Invoice PDF */}
           <div>
-            <label className="block text-sm text-slate-300 mb-2">Invoice PDF</label>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>
+              Invoice PDF
+            </label>
             <input
               type="file"
               accept="application/pdf"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white"
+              className="input-base"
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-2">
-            <button onClick={onClose} className="px-4 py-2 bg-white/5 border border-white/10 rounded-xl text-slate-300">Cancel</button>
-            <button
-              onClick={onSubmit}
-              disabled={loading}
-              className="px-4 py-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-60 rounded-xl text-white font-semibold"
-            >
-              {loading ? 'Submitting...' : 'Submit Invoice'}
+          {/* Actions */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', paddingTop: '4px' }}>
+            <button onClick={onClose} className="btn-secondary">Cancel</button>
+            <button onClick={onSubmit} disabled={loading} className="btn-primary">
+              {loading ? 'Submitting…' : 'Submit Invoice'}
             </button>
           </div>
         </div>

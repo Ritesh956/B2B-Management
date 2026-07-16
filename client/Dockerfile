@@ -1,12 +1,15 @@
-FROM node:20-bookworm-slim
-
+# Build Stage
+FROM node:20-alpine AS build
 WORKDIR /app
-
 COPY package*.json ./
-RUN npm ci
-
+RUN npm install
 COPY . .
+RUN npm run build
 
-EXPOSE 5173
-
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173", "--strictPort"]
+# Production Stage
+FROM nginx:alpine
+# We don't copy nginx conf here, we will mount it in docker-compose, or we can copy it:
+# COPY ../nginx/nginx.conf /etc/nginx/nginx.conf
+COPY --from=build /app/dist /usr/share/nginx/html
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]

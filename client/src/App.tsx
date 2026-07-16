@@ -16,11 +16,35 @@ import InvoiceDetail from './pages/Invoices/InvoiceDetail';
 import ContractList from './pages/Contracts/ContractList';
 import ContractDetail from './pages/Contracts/ContractDetail';
 import AuditLogPage from './pages/AuditLogs/AuditLogPage';
+import ReportsPage from './pages/Reports/ReportsPage';
 import VendorOnlyRoute from './components/VendorOnlyRoute';
+import VendorLayout from './components/VendorLayout';
 import VendorDashboardPage from './pages/Vendor/VendorDashboardPage';
 import VendorInvoiceNewPage from './pages/Vendor/VendorInvoiceNewPage';
 import VendorProfilePage from './pages/Vendor/VendorProfilePage';
+import VendorPOList from './pages/Vendor/VendorPOList';
+import VendorContractList from './pages/Vendor/VendorContractList';
 import SettingsPage from './pages/SettingsPage';
+import UserManagementPage from './pages/Users/UserManagementPage';
+import AcceptInvitePage from './pages/Users/AcceptInvitePage';
+import VerifyOtpPage from './pages/VerifyOtpPage';
+import NotFoundPage from './pages/NotFoundPage';
+import ErrorBoundary from './components/ErrorBoundary';
+import { Toaster } from 'react-hot-toast';
+import { SkeletonTheme } from './components/Skeletons';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
+
+function SkeletonThemeWrapper({ children }: { children: React.ReactNode }) {
+  const { theme } = useTheme();
+  return (
+    <SkeletonTheme 
+      baseColor={theme === 'dark' ? '#1e2030' : '#f1f5f9'} 
+      highlightColor={theme === 'dark' ? '#2a2d3e' : '#e2e8f0'}
+    >
+      {children}
+    </SkeletonTheme>
+  );
+}
 
 export default function App() {
   const hydrate = useAuthStore((s) => s.hydrate);
@@ -31,15 +55,20 @@ export default function App() {
   }, [hydrate]);
 
   return (
-    <BrowserRouter>
-      <Routes>
+    <ThemeProvider>
+      <SkeletonThemeWrapper>
+        <Toaster position="top-right" />
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <Routes>
         {/* Public routes */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/verify-otp" element={<VerifyOtpPage />} />
+        <Route path="/accept-invite/:token" element={<AcceptInvitePage />} />
 
         {/* Protected routes */}
         <Route element={<ProtectedRoute />}>
-          <Route element={<AppLayout />}>
+          <Route element={<ErrorBoundary><AppLayout /></ErrorBoundary>}>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/vendors" element={<VendorList />} />
             <Route path="/vendors/performance" element={<VendorPerformancePage />} />
@@ -51,11 +80,18 @@ export default function App() {
             <Route path="/contracts" element={<ContractList />} />
             <Route path="/contracts/:id" element={<ContractDetail />} />
             <Route path="/audit-logs" element={<AuditLogPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/admin/users" element={<UserManagementPage />} />
 
-            <Route path="/vendor" element={<VendorOnlyRoute />}>
+          </Route>
+
+          <Route path="/vendor" element={<VendorOnlyRoute />}>
+            <Route element={<ErrorBoundary><VendorLayout /></ErrorBoundary>}>
               <Route path="dashboard" element={<VendorDashboardPage />} />
+              <Route path="pos" element={<VendorPOList />} />
               <Route path="invoices/new" element={<VendorInvoiceNewPage />} />
+              <Route path="contracts" element={<VendorContractList />} />
               <Route path="profile" element={<VendorProfilePage />} />
             </Route>
           </Route>
@@ -63,8 +99,10 @@ export default function App() {
 
         {/* Default redirect */}
         <Route path="/" element={<Navigate to={token ? '/dashboard' : '/login'} replace />} />
-        <Route path="*" element={<Navigate to={token ? '/dashboard' : '/login'} replace />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </BrowserRouter>
+    </SkeletonThemeWrapper>
+    </ThemeProvider>
   );
 }

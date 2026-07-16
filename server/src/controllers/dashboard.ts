@@ -9,6 +9,13 @@ type MonthPoint = {
   totalSpend: number;
 };
 
+type VendorSpendPoint = {
+  vendorId: string;
+  vendorName: string;
+  totalSpend: number;
+  poCount: number;
+};
+
 const monthLabel = (date: Date): string =>
   date.toLocaleString('en-US', { month: 'short', year: '2-digit' });
 
@@ -23,6 +30,80 @@ const getLastSixMonthBuckets = () => {
   }
 
   return buckets;
+};
+
+const getApprovedPOStatusFilter = () => ({
+  status: { in: [POStatus.APPROVED, POStatus.CLOSED] },
+});
+
+const buildMonthSeries = (monthBuckets: { start: Date; end: Date; key: string }[], purchaseOrders: { createdAt: Date; totalAmount: number }[]): MonthPoint[] => {
+  const monthSeries: MonthPoint[] = monthBuckets.map((bucket) => ({
+    month: bucket.key,
+    poVolume: 0,
+    totalSpend: 0,
+  }));
+
+  purchaseOrders.forEach((po) => {
+    const idx = monthBuckets.findIndex((bucket) => po.createdAt >= bucket.start && po.createdAt < bucket.end);
+    if (idx >= 0) {
+      monthSeries[idx].poVolume += 1;
+      monthSeries[idx].totalSpend = Number((monthSeries[idx].totalSpend + po.totalAmount).toFixed(2));
+    }
+  });
+
+  return monthSeries;
+};
+
+const loadTopVendorsByPOValue = async (): Promise<VendorSpendPoint[]> => {
+  const topVendorSpendRaw = await prisma.purchaseOrder.groupBy({
+    by: ['vendorId'],
+    where: getApprovedPOStatusFilter(),
+    _sum: { totalAmount: true },
+    _count: { _all: true },
+    orderBy: { _sum: { totalAmount: 'desc' } },
+    take: 5,
+  });
+
+  const topVendorIds = topVendorSpendRaw.map((row) => row.vendorId);
+  const vendors = topVendorIds.length
+    ? await prisma.vendor.findMany({
+        where: { id: { in: topVendorIds } },
+        select: { id: true, companyName: true },
+      })
+    : [];
+  const vendorNameById = new Map(vendors.map((vendor) => [vendor.id, vendor.companyName]));
+
+  return topVendorSpendRaw.map((row) => ({
+    vendorId: row.vendorId,
+    vendorName: vendorNameById.get(row.vendorId) ?? 'Unknown Vendor',
+    totalSpend: Number((row._sum.totalAmount ?? 0).toFixed(2)),
+    poCount: row._count._all,
+  }));
+};
+
+const loadOldestPendingPO = async () => {
+  const oldestPending = await prisma.purchaseOrder.findFirst({
+    where: { status: POStatus.PENDING_APPROVAL },
+    orderBy: { createdAt: 'asc' },
+    select: {
+      id: true,
+      poNumber: true,
+      createdAt: true,
+      vendor: {
+        select: { companyName: true },
+      },
+    },
+  });
+
+  return oldestPending
+    ? {
+        id: oldestPending.id,
+        poNumber: oldestPending.poNumber,
+        vendorName: oldestPending.vendor.companyName,
+        createdAt: oldestPending.createdAt,
+        daysWaiting: Math.max(0, Math.floor((Date.now() - oldestPending.createdAt.getTime()) / (1000 * 60 * 60 * 24))),
+      }
+    : null;
 };
 
 const getPOPendingMyApproval = async (userId: string, role: Role): Promise<number> => {
@@ -102,8 +183,6 @@ export const getDashboardStats = async (req: AuthRequest, res: Response): Promis
       recentPOs,
       invoiceStatusRaw,
       recentActivityRaw,
-      topVendorSpendRaw,
-      oldestPendingPORaw,
     ] = await Promise.all([
       prisma.vendor.count({ where: { status: VendorStatus.VERIFIED } }),
       getPOPendingMyApproval(req.user.id, req.user.role),
@@ -130,71 +209,26 @@ export const getDashboardStats = async (req: AuthRequest, res: Response): Promis
           },
         },
       }),
-      prisma.purchaseOrder.groupBy({
-        by: ['vendorId'],
+    ]);
+    const [topVendorsByPOValue, oldestPendingPO, spendByMonthPOs] = await Promise.all([
+      loadTopVendorsByPOValue(),
+      loadOldestPendingPO(),
+      prisma.purchaseOrder.findMany({
         where: {
           createdAt: { gte: oldestMonthStart },
-          status: { in: [POStatus.PENDING_APPROVAL, POStatus.APPROVED, POStatus.CLOSED] },
+          ...getApprovedPOStatusFilter(),
         },
-        _sum: { totalAmount: true },
-        _count: { _all: true },
-        orderBy: { _sum: { totalAmount: 'desc' } },
-        take: 5,
-      }),
-      prisma.purchaseOrder.findFirst({
-        where: { status: POStatus.PENDING_APPROVAL },
-        orderBy: { createdAt: 'asc' },
-        select: {
-          id: true,
-          poNumber: true,
-          createdAt: true,
-        },
+        select: { createdAt: true, totalAmount: true },
       }),
     ]);
 
-    const topVendorIds = topVendorSpendRaw.map((row) => row.vendorId);
-    const vendors = topVendorIds.length
-      ? await prisma.vendor.findMany({
-          where: { id: { in: topVendorIds } },
-          select: { id: true, companyName: true },
-        })
-      : [];
-    const vendorNameById = new Map(vendors.map((v) => [v.id, v.companyName]));
-
-    const monthSeries: MonthPoint[] = monthBuckets.map((bucket) => ({
-      month: bucket.key,
-      poVolume: 0,
-      totalSpend: 0,
-    }));
-
-    recentPOs.forEach((po) => {
-      const idx = monthBuckets.findIndex((b) => po.createdAt >= b.start && po.createdAt < b.end);
-      if (idx >= 0) {
-        monthSeries[idx].poVolume += 1;
-        monthSeries[idx].totalSpend = Number((monthSeries[idx].totalSpend + po.totalAmount).toFixed(2));
-      }
-    });
+    const monthSeries = buildMonthSeries(monthBuckets, recentPOs);
+    const spendSeries = buildMonthSeries(monthBuckets, spendByMonthPOs);
 
     const invoiceStatusBreakdown = (invoiceStatusRaw as any[]).map((row) => ({
       status: row.status,
       count: row._count.status,
     }));
-
-    const topVendorsByPOValue = topVendorSpendRaw.map((row) => ({
-      vendorId: row.vendorId,
-      vendorName: vendorNameById.get(row.vendorId) ?? 'Unknown Vendor',
-      totalSpend: Number((row._sum.totalAmount ?? 0).toFixed(2)),
-      poCount: row._count._all,
-    }));
-
-    const oldestPendingPO = oldestPendingPORaw
-      ? {
-          id: oldestPendingPORaw.id,
-          poNumber: oldestPendingPORaw.poNumber,
-          createdAt: oldestPendingPORaw.createdAt,
-          daysWaiting: Math.max(0, Math.floor((Date.now() - oldestPendingPORaw.createdAt.getTime()) / (1000 * 60 * 60 * 24))),
-        }
-      : null;
 
     res.status(200).json({
       stats: {
@@ -202,10 +236,11 @@ export const getDashboardStats = async (req: AuthRequest, res: Response): Promis
         posPendingMyApproval,
         invoicesPendingReview,
         contractsExpiringThisMonth,
+        spendByMonth: spendSeries.map((point) => ({ month: point.month, value: point.totalSpend })),
       },
       charts: {
         poVolumeByMonth: monthSeries.map((p) => ({ month: p.month, value: p.poVolume })),
-        poSpendByMonth: monthSeries.map((p) => ({ month: p.month, value: p.totalSpend })),
+        poSpendByMonth: spendSeries.map((p) => ({ month: p.month, value: p.totalSpend })),
         invoiceStatusBreakdown,
       },
       topVendorsByPOValue,
@@ -215,5 +250,25 @@ export const getDashboardStats = async (req: AuthRequest, res: Response): Promis
   } catch (err) {
     console.error('[getDashboardStats]', err);
     res.status(500).json({ error: 'Failed to fetch dashboard stats' });
+  }
+};
+
+export const getTopVendors = async (_req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const vendors = await loadTopVendorsByPOValue();
+    res.status(200).json({ vendors });
+  } catch (err) {
+    console.error('[getTopVendors]', err);
+    res.status(500).json({ error: 'Failed to fetch top vendors' });
+  }
+};
+
+export const getOldestPendingPO = async (_req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const oldestPendingPO = await loadOldestPendingPO();
+    res.status(200).json({ oldestPendingPO });
+  } catch (err) {
+    console.error('[getOldestPendingPO]', err);
+    res.status(500).json({ error: 'Failed to fetch oldest pending PO' });
   }
 };
