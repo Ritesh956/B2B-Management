@@ -29,7 +29,7 @@ export default function VendorProfilePage() {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const res = await api.get('/vendorPortal/profile');
+        const res = await api.get('/vendor/profile');
         setProfile(res.data.profile);
         reset({
           contactName: res.data.profile.contactName || '',
@@ -48,7 +48,7 @@ export default function VendorProfilePage() {
   const onSubmit = async (data: ProfileFormValues) => {
     try {
       setIsSaving(true);
-      await api.patch('/vendorPortal/profile', { contactName: data.contactName, phone: data.phone });
+      await api.patch('/vendor/profile', { contactName: data.contactName, phone: data.phone });
       toast.success('Profile updated successfully');
     } catch (err: any) {
       toast.error(err.response?.data?.error || 'Failed to update profile');

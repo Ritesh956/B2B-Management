@@ -2,6 +2,7 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import NotificationBell from './NotificationBell';
 import HealthIndicator from './HealthIndicator';
+import ErrorBoundary from './ErrorBoundary';
 
 const VENDOR_NAV = [
   {
@@ -45,7 +46,9 @@ export default function VendorLayout() {
         borderRight: '1px solid var(--border-dim)',
         display: 'flex', flexDirection: 'column',
         zIndex: 30,
-      }}>
+        transform: 'translateX(-100%)',
+        transition: 'transform 200ms ease-in-out',
+      }} className="desktop-sidebar-visible">
         {/* Logo */}
         <div style={{ padding: '20px 18px 16px', borderBottom: '1px solid var(--border-dim)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -155,7 +158,7 @@ export default function VendorLayout() {
       </aside>
 
       {/* ─── Main ──────────────────────────────────────────────────── */}
-      <main style={{ marginLeft: 232, flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+      <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', transition: 'margin-left 200ms ease-in-out' }} className="desktop-vendor-shifted">
         {/* Topbar */}
         <header style={{
           position: 'sticky', top: 0, zIndex: 20, height: 56,
@@ -164,6 +167,13 @@ export default function VendorLayout() {
           display: 'flex', alignItems: 'center',
           padding: '0 28px', gap: 16,
         }}>
+          <button 
+            className="mobile-menu-btn" 
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', padding: 0 }}
+            onClick={() => {}} // Mobile toggle logic goes here if vendor portal gets a mobile menu state
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
           <h2 style={{ flex: 1, fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
             {currentSection?.label ?? 'Vendor Portal'}
           </h2>
@@ -172,7 +182,12 @@ export default function VendorLayout() {
 
         {/* Page content */}
         <div style={{ flex: 1 }}>
-          <Outlet />
+          {/* Keying on pathname remounts the boundary on navigation, so picking a
+              working sidebar link actually clears a crashed page instead of leaving
+              the stale "Something went wrong" fallback on screen. */}
+          <ErrorBoundary key={location.pathname}>
+            <Outlet />
+          </ErrorBoundary>
         </div>
       </main>
     </div>

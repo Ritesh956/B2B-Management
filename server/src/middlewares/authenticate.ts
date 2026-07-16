@@ -6,14 +6,14 @@ export interface AuthRequest extends Request {
   user?: {
     id: string;
     role: Role;
-    companyId: string | null;
+
   };
 }
 
 interface JwtPayload {
   userId: string;
   role: Role;
-  companyId: string | null;
+
 }
 
 export const authenticate = (req: AuthRequest, res: Response, next: NextFunction): void => {
@@ -33,7 +33,7 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
     req.user = {
       id: decoded.userId,
       role: decoded.role,
-      companyId: decoded.companyId,
+
     };
 
     next();

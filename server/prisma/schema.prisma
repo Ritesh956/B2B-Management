@@ -1,6 +1,5 @@
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 generator client {
@@ -55,10 +54,8 @@ model User {
   email                   String   @unique
   password                String
   role                    Role
-  companyId               String?
   notificationPreferences Json?
   isTwoFactorEnabled      Boolean  @default(false)
-  company                 Company? @relation(fields: [companyId], references: [id])
   status                  UserStatus @default(ACTIVE)
   lastLogin               DateTime?
   isActive                Boolean    @default(true)
@@ -70,18 +67,8 @@ model User {
   notifications  Notification[]
 
   @@index([email])
-  @@index([companyId])
 }
 
-model Company {
-  id        String   @id @default(uuid())
-  name      String
-  address   String
-  gstin     String?
-  createdAt DateTime @default(now())
-
-  users User[]
-}
 
 model Vendor {
   id               String       @id @default(uuid())

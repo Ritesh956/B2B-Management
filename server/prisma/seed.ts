@@ -28,55 +28,40 @@ async function main() {
   await prisma.contract.deleteMany({});
   await prisma.vendor.deleteMany({});
   await prisma.user.deleteMany({});
-  await prisma.company.deleteMany({});
   console.log('Database cleared.');
 
   console.log('Seeding demo data...');
-  const company = await prisma.company.upsert({
-    where: { id: 'demo-company-main' },
-    update: {
-      name: 'Demo Operations Pvt Ltd',
-      address: 'Andheri East, Mumbai',
-      gstin: '27ABCDE1234F1Z5',
-    },
-    create: {
-      id: 'demo-company-main',
-      name: 'Demo Operations Pvt Ltd',
-      address: 'Andheri East, Mumbai',
-      gstin: '27ABCDE1234F1Z5',
-    },
-  });
 
   const users = await Promise.all([
     prisma.user.upsert({
       where: { email: 'admin@demo.com' },
-      update: { name: 'Demo Admin', password: adminPassword, role: Role.ADMIN, companyId: company.id },
-      create: { name: 'Demo Admin', email: 'admin@demo.com', password: adminPassword, role: Role.ADMIN, companyId: company.id },
+      update: { name: 'Demo Admin', password: adminPassword, role: Role.ADMIN },
+      create: { name: 'Demo Admin', email: 'admin@demo.com', password: adminPassword, role: Role.ADMIN },
     }),
     prisma.user.upsert({
       where: { email: 'finance@demo.com' },
-      update: { name: 'Demo Finance', password: financePassword, role: Role.FINANCE, companyId: company.id },
-      create: { name: 'Demo Finance', email: 'finance@demo.com', password: financePassword, role: Role.FINANCE, companyId: company.id },
+      update: { name: 'Demo Finance', password: financePassword, role: Role.FINANCE },
+      create: { name: 'Demo Finance', email: 'finance@demo.com', password: financePassword, role: Role.FINANCE },
     }),
     prisma.user.upsert({
       where: { email: 'procure@demo.com' },
-      update: { name: 'Demo Procurement', password: procurementPassword, role: Role.PROCUREMENT, companyId: company.id },
-      create: { name: 'Demo Procurement', email: 'procure@demo.com', password: procurementPassword, role: Role.PROCUREMENT, companyId: company.id },
+      update: { name: 'Demo Procurement', password: procurementPassword, role: Role.PROCUREMENT },
+      create: { name: 'Demo Procurement', email: 'procure@demo.com', password: procurementPassword, role: Role.PROCUREMENT },
     }),
     prisma.user.upsert({
       where: { email: 'manager@demo.com' },
-      update: { name: 'Demo Manager', password: managerPassword, role: Role.MANAGER, companyId: company.id },
-      create: { name: 'Demo Manager', email: 'manager@demo.com', password: managerPassword, role: Role.MANAGER, companyId: company.id },
+      update: { name: 'Demo Manager', password: managerPassword, role: Role.MANAGER },
+      create: { name: 'Demo Manager', email: 'manager@demo.com', password: managerPassword, role: Role.MANAGER },
     }),
     prisma.user.upsert({
       where: { email: 'vendor@demo.com' },
-      update: { name: 'Vendor One User', password: vendorPassword, role: Role.VENDOR, companyId: null },
-      create: { name: 'Vendor One User', email: 'vendor@demo.com', password: vendorPassword, role: Role.VENDOR, companyId: null },
+      update: { name: 'Vendor One User', password: vendorPassword, role: Role.VENDOR },
+      create: { name: 'Vendor One User', email: 'vendor@demo.com', password: vendorPassword, role: Role.VENDOR },
     }),
     prisma.user.upsert({
       where: { email: 'vendor2@demo.com' },
-      update: { name: 'Vendor Two User', password: vendorPassword, role: Role.VENDOR, companyId: null },
-      create: { name: 'Vendor Two User', email: 'vendor2@demo.com', password: vendorPassword, role: Role.VENDOR, companyId: null },
+      update: { name: 'Vendor Two User', password: vendorPassword, role: Role.VENDOR },
+      create: { name: 'Vendor Two User', email: 'vendor2@demo.com', password: vendorPassword, role: Role.VENDOR },
     }),
   ]);
 

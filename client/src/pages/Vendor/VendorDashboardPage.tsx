@@ -25,7 +25,7 @@ export default function VendorDashboardPage() {
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
-        const dashboardRes = await api.get('/vendorPortal/dashboard');
+        const dashboardRes = await api.get('/vendor/dashboard');
         if (dashboardRes.data) {
           setStats({
             openPOs: dashboardRes.data.summary?.poCount || 0,

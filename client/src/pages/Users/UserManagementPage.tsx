@@ -161,6 +161,7 @@ export default function UserManagementPage() {
             </tbody>
           </table>
         </div>
+      </div>
 
         {showInviteModal && (
           <InviteUserModal

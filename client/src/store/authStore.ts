@@ -15,7 +15,7 @@ export interface AuthUser {
   name: string;
   email: string;
   role: Role;
-  companyId: string | null;
+
   notificationPreferences?: {
     emailEnabled: boolean;
     poApprovals: boolean;
@@ -38,7 +38,12 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   token: localStorage.getItem('token'),
-  isLoading: false,
+  // Start in a loading state whenever a token is present, so the app waits
+  // for hydrate() to confirm the session before any route guard evaluates
+  // `user` (which is still null at this point). Otherwise a hard reload of a
+  // role-gated route (e.g. /vendor/*) bounces the user to /login before
+  // hydrate() has had a chance to resolve.
+  isLoading: !!localStorage.getItem('token'),
 
   login: async (email, password) => {
     set({ isLoading: true });
@@ -105,9 +110,18 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const { data } = await api.get('/auth/me');
       set({ user: data.user, token, isLoading: false });
-    } catch {
-      localStorage.removeItem('token');
-      set({ user: null, token: null, isLoading: false });
+    } catch (err: any) {
+      const status = err?.response?.status;
+      if (status === 401 || status === 403) {
+        // Token is genuinely invalid or expired — safe to clear.
+        localStorage.removeItem('token');
+        set({ user: null, token: null, isLoading: false });
+      } else {
+        // Rate-limited, offline, or a transient server error — the session
+        // itself may still be valid, so don't destroy it. Keep the token and
+        // let the next successful request (or the 401 interceptor) resolve it.
+        set({ isLoading: false });
+      }
     }
   },
 }));

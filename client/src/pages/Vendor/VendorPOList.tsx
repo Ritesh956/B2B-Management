@@ -69,7 +69,7 @@ export default function VendorPOList() {
                     </td>
                     <td>{new Date(po.createdAt).toLocaleDateString()}</td>
                     <td style={{ textAlign: 'right' }}>
-                      <Link to={`/pos/${po.id}`} style={{ color: '#10b981', fontWeight: 600, fontSize: 12.5 }}>View Details →</Link>
+                      <Link to={`/vendor/pos/${po.id}`} style={{ color: '#10b981', fontWeight: 600, fontSize: 12.5 }}>View Details →</Link>
                     </td>
                   </tr>
                 );

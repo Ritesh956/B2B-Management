@@ -74,7 +74,7 @@ export default function DashboardPage() {
 
   const statCards = useMemo(() => [
     { label: 'Active Vendors',        value: data?.stats.totalActiveVendors ?? 0,       accent: '#6366f1', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
-    { label: 'POs Pending Approval',   value: data?.stats.posPendingMyApproval ?? 0,    accent: '#f59e0b', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> },
+    { label: 'Awaiting Your Approval', value: data?.stats.posPendingMyApproval ?? 0,    accent: '#f59e0b', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> },
     { label: 'Invoices Under Review',  value: data?.stats.invoicesPendingReview ?? 0,   accent: '#06b6d4', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> },
     { label: 'Contracts Expiring',     value: data?.stats.contractsExpiringThisMonth ?? 0, accent: '#10b981', icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 14.66V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5.34"/><polygon points="18 2 22 6 12 16 8 16 8 12 18 2"/></svg> },
   ], [data]);

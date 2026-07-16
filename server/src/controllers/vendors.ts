@@ -49,7 +49,7 @@ export const listVendors = async (req: Request, res: Response): Promise<void> =>
     const pageNum = Math.max(1, parseInt(page));
     const limitNum = Math.min(100, Math.max(1, parseInt(limit)));
     const skip = (pageNum - 1) * limitNum;
-    const where: any = {}; // Use any here to allow dynamic construction of the Prisma where object
+    const where: import('@prisma/client').Prisma.VendorWhereInput = {};
 
     if (status && Object.values(VendorStatus).includes(status as VendorStatus)) {
       where['status'] = status as VendorStatus;
@@ -127,8 +127,8 @@ export const updateVendorPerformanceScore = async (req: AuthRequest, res: Respon
     const { id } = req.params;
     const { performanceScore } = req.body as { performanceScore?: number };
 
-    if (typeof performanceScore !== 'number' || Number.isNaN(performanceScore) || performanceScore < 0 || performanceScore > 100) {
-      res.status(400).json({ error: 'performanceScore must be a number between 0 and 100' });
+    if (typeof performanceScore !== 'number' || Number.isNaN(performanceScore) || performanceScore < 0 || performanceScore > 5) {
+      res.status(400).json({ error: 'performanceScore must be a number between 0 and 5' });
       return;
     }
 
@@ -289,7 +289,7 @@ export const bulkExportVendors = async (req: AuthRequest, res: Response): Promis
 export const exportVendors = async (req: Request, res: Response): Promise<void> => {
   try {
     const { status, search } = req.query as Record<string, string>;
-    const where: any = {};
+    const where: import('@prisma/client').Prisma.VendorWhereInput = {};
     if (status && Object.values(VendorStatus).includes(status as VendorStatus)) {
       where['status'] = status as VendorStatus;
     }

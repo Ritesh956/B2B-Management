@@ -206,9 +206,11 @@ export default function VendorDetail() {
                       <p style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {doc.name}
                       </p>
-                      <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                        {(doc.size / 1024).toFixed(1)} KB
-                      </p>
+                      {typeof doc.size === 'number' && (
+                        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                          {(doc.size / 1024).toFixed(1)} KB
+                        </p>
+                      )}
                     </div>
                     <a
                       href={doc.url}

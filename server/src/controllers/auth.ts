@@ -45,13 +45,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
     const hashed = await bcrypt.hash(password, 10);
 
-    let companyId: string | null = null;
-    if (companyName && companyAddress) {
-      const company = await prisma.company.create({
-        data: { name: companyName, address: companyAddress, gstin: gstin ?? null },
-      });
-      companyId = company.id;
-    }
+
 
     const user = await prisma.user.create({
       data: {
@@ -59,7 +53,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         email,
         password: hashed,
         role,
-        companyId,
+
         notificationPreferences: {
           emailEnabled: true,
           poApprovals: true,
@@ -67,7 +61,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
           contractReminders: true,
         },
       },
-      select: { id: true, name: true, email: true, role: true, companyId: true, notificationPreferences: true, createdAt: true },
+      select: { id: true, name: true, email: true, role: true, notificationPreferences: true, createdAt: true },
     });
 
     res.status(201).json({ message: 'User registered successfully', user });
@@ -133,7 +127,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     const secret = process.env.JWT_SECRET || 'secret';
     const token = jwt.sign(
-      { userId: user.id, role: user.role, companyId: user.companyId },
+      { userId: user.id, role: user.role },
       secret,
       { expiresIn: '7d' }
     );
@@ -195,7 +189,7 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
     });
 
     const token = jwt.sign(
-      { userId: user.id, role: user.role, companyId: user.companyId },
+      { userId: user.id, role: user.role },
       secret,
       { expiresIn: '7d' }
     );
@@ -251,7 +245,7 @@ export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
         name: true,
         email: true,
         role: true,
-        companyId: true,
+
         notificationPreferences: true,
         createdAt: true,
       },
@@ -326,7 +320,7 @@ export const updateMe = async (req: AuthRequest, res: Response): Promise<void> =
           name: true,
           email: true,
           role: true,
-          companyId: true,
+
           notificationPreferences: true,
           createdAt: true,
         },

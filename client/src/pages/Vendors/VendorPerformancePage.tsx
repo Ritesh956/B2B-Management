@@ -7,19 +7,25 @@ import { vendorService, type VendorPerformanceRow } from '../../services/vendors
 const formatPercent = (value: number): string => `${value.toFixed(0)}%`;
 type SortKey = 'companyName' | 'performanceScore' | 'totalPOs' | 'mismatchRate';
 
+// performanceScore is on a 0–5 scale everywhere in the product (see VendorDetail,
+// seed data). Thresholds below are the 5-point equivalents of "under 40%" / "under 70%".
+const MAX_SCORE = 5;
+
 const scoreTone = (score: number | null): string => {
   const value = score ?? 0;
-  if (value < 40) return 'from-rose-500 to-red-500';
-  if (value <= 70) return 'from-amber-400 to-orange-400';
+  if (value < 2) return 'from-rose-500 to-red-500';
+  if (value <= 3.5) return 'from-amber-400 to-orange-400';
   return 'from-emerald-400 to-cyan-400';
 };
 
 const scoreLabelTone = (score: number | null): string => {
   const value = score ?? 0;
-  if (value < 40) return 'text-rose-200 border-rose-500/30 bg-rose-500/10';
-  if (value <= 70) return 'text-amber-200 border-amber-500/30 bg-amber-500/10';
+  if (value < 2) return 'text-rose-200 border-rose-500/30 bg-rose-500/10';
+  if (value <= 3.5) return 'text-amber-200 border-amber-500/30 bg-amber-500/10';
   return 'text-emerald-200 border-emerald-500/30 bg-emerald-500/10';
 };
+
+const scoreBarWidth = (score: number): number => Math.max(0, Math.min(100, (score / MAX_SCORE) * 100));
 
 export default function VendorPerformancePage() {
   const user = useAuthStore((s) => s.user);
@@ -101,7 +107,7 @@ export default function VendorPerformancePage() {
 
   const handleSaveScore = async (vendorId: string) => {
     const parsed = Number(draftScore);
-    if (Number.isNaN(parsed) || parsed < 0 || parsed > 100) {
+    if (Number.isNaN(parsed) || parsed < 0 || parsed > MAX_SCORE) {
       return;
     }
 
@@ -138,7 +144,7 @@ export default function VendorPerformancePage() {
             autoFocus
             type="number"
             min={0}
-            max={100}
+            max={MAX_SCORE}
             step="0.1"
             value={draftScore}
             onChange={(e) => setDraftScore(e.target.value)}
@@ -174,13 +180,13 @@ export default function VendorPerformancePage() {
           <div className="flex items-center justify-between gap-3 text-xs text-slate-400">
             <span className="text-slate-500">Score</span>
             <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.24em] ${scoreLabelTone(vendor.performanceScore)}`}>
-              {Math.round(score)}
+              {score.toFixed(1)} / {MAX_SCORE}
             </span>
           </div>
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/5">
             <div
               className={`h-full rounded-full bg-linear-to-r ${scoreTone(vendor.performanceScore)} transition-all`}
-              style={{ width: `${Math.max(0, Math.min(100, score))}%` }}
+              style={{ width: `${scoreBarWidth(score)}%` }}
             />
           </div>
         </div>
@@ -196,13 +202,13 @@ export default function VendorPerformancePage() {
         <div className="flex items-center justify-between gap-3 text-xs text-slate-400">
           <span>Click to edit</span>
           <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.24em] ${scoreLabelTone(vendor.performanceScore)}`}>
-            {Math.round(score)}
+            {score.toFixed(1)} / {MAX_SCORE}
           </span>
         </div>
         <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/5">
           <div
             className={`h-full rounded-full bg-linear-to-r ${scoreTone(vendor.performanceScore)} transition-all`}
-            style={{ width: `${Math.max(0, Math.min(100, score))}%` }}
+            style={{ width: `${scoreBarWidth(score)}%` }}
           />
         </div>
       </button>

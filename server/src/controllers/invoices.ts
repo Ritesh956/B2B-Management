@@ -166,7 +166,7 @@ export const listInvoices = async (req: AuthRequest, res: Response): Promise<voi
       return;
     }
 
-    const where: any = {};
+    const where: import('@prisma/client').Prisma.InvoiceWhereInput = {};
 
     if (req.user.role === Role.VENDOR) {
       const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });
@@ -493,7 +493,7 @@ export const exportInvoices = async (req: AuthRequest, res: Response): Promise<v
       return;
     }
 
-    const where: any = {};
+    const where: import('@prisma/client').Prisma.InvoiceWhereInput = {};
 
     if (req.user.role === Role.VENDOR) {
       const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });

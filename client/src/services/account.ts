@@ -13,7 +13,7 @@ export interface AccountProfile {
   name: string;
   email: string;
   role: string;
-  companyId: string | null;
+
   notificationPreferences: AccountNotificationPreferences | null;
   createdAt: string;
   company: unknown;
@@ -31,7 +31,7 @@ const accountProfileSchema: z.ZodType<AccountProfile> = z.object({
   name: z.string(),
   email: z.string(),
   role: z.string(),
-  companyId: z.string().nullable(),
+
   notificationPreferences: accountNotificationPreferencesSchema.nullable(),
   createdAt: z.string(),
   company: z.unknown(),

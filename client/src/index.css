@@ -388,3 +388,11 @@ input[type="checkbox"]:checked::before {
   .page-root { padding: 16px; }
   .card { padding: 16px; }
 }
+
+@media (min-width: 769px) {
+  .desktop-sidebar-visible { transform: translateX(0) !important; }
+  .desktop-main-shifted { margin-left: 240px !important; }
+  .desktop-vendor-shifted { margin-left: 232px !important; }
+  .mobile-menu-btn { display: none !important; }
+}
+

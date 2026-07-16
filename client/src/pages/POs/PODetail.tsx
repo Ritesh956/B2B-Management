@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import ApprovalActions from '../../components/ApprovalActions';
 import { type PurchaseOrder } from '../../services/pos';
 import { usePOQuery } from '../../hooks/usePOQuery';
@@ -141,6 +141,8 @@ const HorizontalTimeline = ({ po }: { po: PurchaseOrder }) => {
 export default function PODetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const posListPath = location.pathname.startsWith('/vendor') ? '/vendor/pos' : '/pos';
   const [po, setPO] = useState<PurchaseOrder | null>(null);
   const { data, isLoading, error } = usePOQuery(id ?? '');
 
@@ -157,7 +159,7 @@ export default function PODetail() {
           <p style={{ fontSize: '15px', fontWeight: 600, color: '#ef4444' }}>
             {error instanceof Error ? error.message : 'PO not found'}
           </p>
-          <button onClick={() => navigate('/pos')} className="btn-ghost" style={{ marginTop: '16px' }}>
+          <button onClick={() => navigate(posListPath)} className="btn-ghost" style={{ marginTop: '16px' }}>
             ← Back to POs
           </button>
         </div>
@@ -171,7 +173,7 @@ export default function PODetail() {
       <div className="surface" style={{ padding: '24px 32px', borderRadius: '16px' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <Link to="/pos" className="btn-ghost" style={{ padding: '8px 12px', textDecoration: 'none', fontSize: '16px' }}>←</Link>
+            <Link to={posListPath} className="btn-ghost" style={{ padding: '8px 12px', textDecoration: 'none', fontSize: '16px' }}>←</Link>
             <div>
               <h1 className="page-title" style={{ margin: 0 }}>{po.poNumber}</h1>
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '2px' }}>

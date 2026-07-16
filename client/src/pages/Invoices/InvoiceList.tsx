@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import RoleGate from '../../components/RoleGate';
 import { Role } from '../../store/authStore';
@@ -7,17 +7,14 @@ import SubmitInvoiceModal from './SubmitInvoiceModal';
 import EmptyState from '../../components/EmptyState';
 import { downloadBlob } from '../../utils/csv';
 import { useInvoicesQuery } from '../../hooks/useInvoicesQuery';
-import { useVendorsQuery } from '../../hooks/useVendorsQuery';
 import { TableSkeleton } from '../../components/Skeletons';
 import CopyToClipboard from '../../components/CopyToClipboard';
 import BulkActionBar, { BulkConfirmModal, useRowSelection } from '../../components/BulkActionBar';
-import FilterPanel, { type FilterValues, countActiveFilters, getFilterPills } from '../../components/FilterPanel';
+
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 
-const EMPTY_FILTERS: FilterValues = {
-  statuses: [], vendorId: '', minAmount: '', maxAmount: '', fromDate: '', toDate: '', createdById: '',
-};
+type FilterValues = { statuses: string[]; vendorId: string; minAmount: string; maxAmount: string; fromDate: string; toDate: string; createdById: string; };
 
 function filtersToParams(f: FilterValues) {
   const p: Record<string, string> = {};
@@ -44,22 +41,15 @@ function paramsToFilters(params: URLSearchParams): FilterValues {
 
 export default function InvoiceList() {
   const userRole = useAuthStore((s) => s.user?.role);
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const [showSubmitModal, setShowSubmitModal] = useState(false);
-  const [filterOpen, setFilterOpen] = useState(false);
   const [confirmBulkApprove, setConfirmBulkApprove] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
 
   const filters = paramsToFilters(searchParams);
 
-  const handleFiltersChange = useCallback((newFilters: FilterValues) => {
-    setSearchParams(filtersToParams(newFilters), { replace: true });
-  }, [setSearchParams]);
-
   const { data, isLoading, refetch } = useInvoicesQuery();
-  const { data: vendorData } = useVendorsQuery({ limit: 100 });
   const allInvoices = data?.invoices ?? [];
-  const vendors = vendorData?.vendors ?? [];
 
   const invoices = allInvoices.filter((inv) => {
     if (filters.statuses.length > 0 && !filters.statuses.includes(inv.status)) return false;
@@ -79,8 +69,6 @@ export default function InvoiceList() {
   const submittedCount = invoices.filter((inv) => inv.status === 'SUBMITTED').length;
   const approvedCount = invoices.filter((inv) => inv.status === 'APPROVED').length;
   const paidCount = invoices.filter((inv) => inv.status === 'PAID').length;
-  const activeFilterCount = countActiveFilters(filters);
-  const filterPills = getFilterPills(filters, handleFiltersChange, vendors.map(v => ({ id: v.id, name: v.companyName })));
 
   const exportCsv = async () => {
     try {
@@ -143,27 +131,12 @@ export default function InvoiceList() {
           <button onClick={exportCsv} className="btn-secondary">
             Export CSV
           </button>
-          <button
-            onClick={() => setFilterOpen(true)}
-            className="btn-secondary"
-            style={activeFilterCount > 0 ? { borderColor: 'rgba(6,182,212,0.4)', color: '#06b6d4', background: 'rgba(6,182,212,0.08)' } : {}}
-          >
-            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <svg style={{ width: '14px', height: '14px' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
-              </svg>
-              Filters
-              {activeFilterCount > 0 && (
-                <span style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  width: '18px', height: '18px', borderRadius: '50%',
-                  background: '#06b6d4', fontSize: '10px', fontWeight: 700, color: '#fff'
-                }}>
-                  {activeFilterCount}
-                </span>
-              )}
-            </span>
-          </button>
+              <button className="btn-secondary">
+                <svg style={{ width: '14px', height: '14px', marginRight: '8px' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+                </svg>
+                Filters
+              </button>
           <RoleGate roles={[Role.VENDOR]} fallback={null}>
             <button onClick={() => setShowSubmitModal(true)} className="btn-primary">
               Submit Invoice
@@ -173,28 +146,7 @@ export default function InvoiceList() {
       </div>
 
       {/* Active filter pills */}
-      {filterPills.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Active filters:</span>
-          {filterPills.map((pill, i) => (
-            <span key={i} style={{
-              display: 'inline-flex', alignItems: 'center', gap: '6px',
-              borderRadius: '9999px', border: '1px solid rgba(6,182,212,0.25)',
-              background: 'rgba(6,182,212,0.08)', padding: '2px 10px',
-              fontSize: '11px', color: '#06b6d4'
-            }}>
-              {pill.label}
-              <button onClick={pill.onRemove} style={{ color: 'var(--text-muted)', lineHeight: 1, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
-            </span>
-          ))}
-          <button
-            onClick={() => handleFiltersChange(EMPTY_FILTERS)}
-            style={{ fontSize: '11px', color: 'var(--text-muted)', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer' }}
-          >
-            Clear all filters
-          </button>
-        </div>
-      )}
+
 
       {/* Table */}
       <div>
@@ -291,17 +243,7 @@ export default function InvoiceList() {
         />
       )}
 
-      <FilterPanel
-        isOpen={filterOpen}
-        onClose={() => setFilterOpen(false)}
-        config={{
-          availableStatuses: ['SUBMITTED', 'MATCHED', 'MISMATCHED', 'APPROVED', 'PAID'],
-          vendors: vendors.map((v) => ({ id: v.id, name: v.companyName })),
-        }}
-        values={filters}
-        onChange={handleFiltersChange}
-        savedFilterKey="invoices"
-      />
+
 
       {showSubmitModal && (
         <SubmitInvoiceModal

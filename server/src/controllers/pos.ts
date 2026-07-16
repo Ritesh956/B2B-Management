@@ -149,7 +149,7 @@ export const listPOs = async (req: AuthRequest, res: Response): Promise<void> =>
     }
 
     const { status, vendorId, minAmount, maxAmount, fromDate, toDate, createdById } = req.query as Record<string, string>;
-    const where: any = {};
+    const where: import('@prisma/client').Prisma.PurchaseOrderWhereInput = {};
 
     // Support comma-separated multiple statuses
     if (status) {
@@ -499,7 +499,7 @@ export const exportPOs = async (req: AuthRequest, res: Response): Promise<void> 
     }
 
     const { status } = req.query as { status?: string };
-    const where: any = {};
+    const where: import('@prisma/client').Prisma.PurchaseOrderWhereInput = {};
 
     if (status && Object.values(POStatus).includes(status as POStatus)) {
       where.status = status as POStatus;

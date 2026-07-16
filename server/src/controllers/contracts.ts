@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../config/prisma';
 import { AuthRequest } from '../middlewares/authenticate';
-import { ContractStatus } from '@prisma/client';
+import { ContractStatus, Role } from '@prisma/client';
 import { buildLocalFileUrl } from '../config/s3';
 
 export const createContract = async (req: AuthRequest, res: Response): Promise<void> => {
@@ -66,6 +66,12 @@ export const listContracts = async (req: AuthRequest, res: Response): Promise<vo
     thirtyDays.setDate(thirtyDays.getDate() + 30);
 
     const where: any = {};
+    let ownVendorEmail: string | null = null;
+
+    if (req.user?.role === Role.VENDOR) {
+      const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });
+      ownVendorEmail = user?.email ?? '__none__';
+    }
 
     if (status && Object.values(ContractStatus).includes(status as ContractStatus)) {
       where.status = status as ContractStatus;
@@ -78,6 +84,11 @@ export const listContracts = async (req: AuthRequest, res: Response): Promise<vo
           { email: { contains: searchVendor, mode: 'insensitive' } },
         ],
       };
+    }
+
+    // A vendor may only ever see their own contracts, regardless of other filters above.
+    if (ownVendorEmail) {
+      where.vendor = { ...(where.vendor ?? {}), email: ownVendorEmail };
     }
 
     if (filter === 'expiring' || expiringSoon === 'true' || expiringSoon === '1') {
@@ -147,6 +158,14 @@ export const getContractById = async (req: AuthRequest, res: Response): Promise<
     if (!contract) {
       res.status(404).json({ error: 'Contract not found' });
       return;
+    }
+
+    if (req.user?.role === Role.VENDOR) {
+      const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });
+      if (!user || contract.vendor.email !== user.email) {
+        res.status(404).json({ error: 'Contract not found' });
+        return;
+      }
     }
 
     const now = new Date();

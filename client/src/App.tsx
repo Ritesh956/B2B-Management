@@ -29,7 +29,6 @@ import UserManagementPage from './pages/Users/UserManagementPage';
 import AcceptInvitePage from './pages/Users/AcceptInvitePage';
 import VerifyOtpPage from './pages/VerifyOtpPage';
 import NotFoundPage from './pages/NotFoundPage';
-import ErrorBoundary from './components/ErrorBoundary';
 import { Toaster } from 'react-hot-toast';
 import { SkeletonTheme } from './components/Skeletons';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
@@ -49,10 +48,22 @@ function SkeletonThemeWrapper({ children }: { children: React.ReactNode }) {
 export default function App() {
   const hydrate = useAuthStore((s) => s.hydrate);
   const token = useAuthStore((s) => s.token);
+  const loading = useAuthStore((s) => s.isLoading);
 
   useEffect(() => {
     hydrate();
   }, [hydrate]);
+
+  if (loading) {
+    return (
+      <ThemeProvider>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: 'var(--bg-base)' }}>
+          <div style={{ width: 48, height: 48, borderRadius: '50%', border: '4px solid var(--border-subtle)', borderTopColor: '#6366f1', animation: 'spin 0.8s linear infinite' }} />
+          <p style={{ marginTop: 16, color: 'var(--text-secondary)', fontWeight: 500, fontSize: 14, letterSpacing: '0.05em', textTransform: 'uppercase' }}>VendorHub Loading...</p>
+        </div>
+      </ThemeProvider>
+    );
+  }
 
   return (
     <ThemeProvider>
@@ -68,7 +79,7 @@ export default function App() {
 
         {/* Protected routes */}
         <Route element={<ProtectedRoute />}>
-          <Route element={<ErrorBoundary><AppLayout /></ErrorBoundary>}>
+          <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/vendors" element={<VendorList />} />
             <Route path="/vendors/performance" element={<VendorPerformancePage />} />
@@ -87,9 +98,10 @@ export default function App() {
           </Route>
 
           <Route path="/vendor" element={<VendorOnlyRoute />}>
-            <Route element={<ErrorBoundary><VendorLayout /></ErrorBoundary>}>
+            <Route element={<VendorLayout />}>
               <Route path="dashboard" element={<VendorDashboardPage />} />
               <Route path="pos" element={<VendorPOList />} />
+              <Route path="pos/:id" element={<PODetail />} />
               <Route path="invoices/new" element={<VendorInvoiceNewPage />} />
               <Route path="contracts" element={<VendorContractList />} />
               <Route path="profile" element={<VendorProfilePage />} />
