@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { poService, type PurchaseOrder } from '../services/pos';
 import { useAuthStore } from '../store/authStore';
+import { getErrorMessage } from '../utils/apiError';
 
 interface Props {
   po: PurchaseOrder;
@@ -33,8 +34,8 @@ export default function ApprovalActions({ po, onUpdated }: Props) {
       const { po: updated } = await poService.approve(po.id, isOverride ? reason : undefined);
       onUpdated(updated);
       setReason('');
-    } catch (err: any) {
-      setError(err?.response?.data?.error || 'Failed to approve PO');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to approve PO'));
     } finally { setLoading(false); }
   };
 
@@ -46,8 +47,8 @@ export default function ApprovalActions({ po, onUpdated }: Props) {
       const { po: updated } = await poService.reject(po.id, reason);
       onUpdated(updated);
       setReason('');
-    } catch (err: any) {
-      setError(err?.response?.data?.error || 'Failed to reject PO');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to reject PO'));
     } finally { setLoading(false); }
   };
 

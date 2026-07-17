@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getInviteToken, acceptInvite } from '../../services/users';
+import { getErrorMessage } from '../../utils/apiError';
 
 export default function AcceptInvitePage() {
   const { token } = useParams<{ token: string }>();
@@ -39,9 +40,9 @@ export default function AcceptInvitePage() {
       await acceptInvite(token, { name, password });
       setSuccess(true);
       setTimeout(() => navigate('/login'), 2000);
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      setError(err.response?.data?.error || 'Failed to accept invitation');
+      setError(getErrorMessage(err, 'Failed to accept invitation'));
       setSubmitting(false);
     }
   };

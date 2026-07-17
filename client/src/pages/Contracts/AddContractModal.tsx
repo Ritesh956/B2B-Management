@@ -60,7 +60,7 @@ export default function AddContractModal({ onClose, onSuccess }: AddContractModa
       setVendorsLoading(true);
       const result = await vendorService.list({ page: 1, limit: 100 });
       // Filter for verified vendors
-      setVendors(result.vendors.filter((v: any) => v.status === 'VERIFIED'));
+      setVendors(result.vendors.filter((v) => v.status === 'VERIFIED'));
     } catch (err) {
       console.error('Failed to load vendors:', err);
     } finally {

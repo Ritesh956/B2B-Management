@@ -14,7 +14,10 @@ export function useKeyboardShortcuts(handlers: ShortcutHandlers = {}) {
   const location = useLocation();
   const user = useAuthStore((s) => s.user);
   const handlersRef = useRef(handlers);
-  handlersRef.current = handlers;
+
+  useEffect(() => {
+    handlersRef.current = handlers;
+  });
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {

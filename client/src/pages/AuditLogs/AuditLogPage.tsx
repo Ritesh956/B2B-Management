@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import RoleGate from '../../components/RoleGate';
 import { Role } from '../../store/authStore';
@@ -60,7 +60,7 @@ export default function AuditLogPage() {
     [entity, userId, search, from]
   );
 
-  const loadLogs = async (targetPage = 1) => {
+  const loadLogs = useCallback(async (targetPage = 1) => {
     try {
       setLoading(true);
       const data = await auditLogService.list({
@@ -76,11 +76,11 @@ export default function AuditLogPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters]);
 
   useEffect(() => {
     loadLogs(1);
-  }, [filters]);
+  }, [loadLogs]);
 
   useEffect(() => {
     listUsers()

@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { validateResetToken, resetPassword } from '../services/passwordReset';
+import { getErrorMessage } from '../utils/apiError';
 
 export default function ResetPasswordPage() {
   const { token } = useParams<{ token: string }>();
   const navigate = useNavigate();
 
-  const [checkingToken, setCheckingToken] = useState(true);
+  const [checkingToken, setCheckingToken] = useState(!!token);
   const [tokenValid, setTokenValid] = useState(false);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -15,10 +16,7 @@ export default function ResetPasswordPage() {
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    if (!token) {
-      setCheckingToken(false);
-      return;
-    }
+    if (!token) return;
     validateResetToken(token)
       .then(() => setTokenValid(true))
       .catch(() => setTokenValid(false))
@@ -44,8 +42,8 @@ export default function ResetPasswordPage() {
       await resetPassword(token, password);
       setSuccess(true);
       setTimeout(() => navigate('/login'), 2000);
-    } catch (err: any) {
-      setError(err?.response?.data?.error || 'Failed to reset password. The link may have expired.');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to reset password. The link may have expired.'));
       setSubmitting(false);
     }
   };

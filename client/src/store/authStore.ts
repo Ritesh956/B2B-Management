@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { isAxiosError } from 'axios';
 import api from '../services/api';
 
 // CHANGED: Use 'export enum' instead of 'type' so it exists at runtime
@@ -100,8 +101,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const { data } = await api.get('/auth/me');
       set({ user: data.user, token, isLoading: false });
-    } catch (err: any) {
-      const status = err?.response?.status;
+    } catch (err) {
+      const status = isAxiosError(err) ? err.response?.status : undefined;
       if (status === 401 || status === 403) {
         // Token is genuinely invalid or expired — safe to clear.
         localStorage.removeItem('token');

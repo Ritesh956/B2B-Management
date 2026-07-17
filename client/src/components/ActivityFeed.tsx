@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import api from '../services/api';
 
@@ -12,14 +12,14 @@ type AuditLog = {
   action: string;
   createdAt: string;
   user: AuditLogUser;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 };
 
 export default function ActivityFeed({ entity, entityId }: { entity: string; entityId: string }) {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     try {
       const { data } = await api.get(`/audit-logs?entity=${entity}&entityId=${entityId}&limit=20`);
       setLogs(data.logs || []);
@@ -28,13 +28,13 @@ export default function ActivityFeed({ entity, entityId }: { entity: string; ent
     } finally {
       setLoading(false);
     }
-  };
+  }, [entity, entityId]);
 
   useEffect(() => {
     fetchLogs();
     const interval = setInterval(fetchLogs, 30000); // refresh every 30 seconds
     return () => clearInterval(interval);
-  }, [entity, entityId]);
+  }, [fetchLogs]);
 
   const getActionColor = (action: string) => {
     const act = action.toUpperCase();

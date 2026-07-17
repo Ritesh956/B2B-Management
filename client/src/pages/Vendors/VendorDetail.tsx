@@ -7,6 +7,7 @@ import { useVendorQuery } from '../../hooks/useVendorsQuery';
 import ActivityFeed from '../../components/ActivityFeed';
 import { DetailPageSkeleton } from '../../components/Skeletons';
 import { withAuthToken } from '../../utils/fileUrl';
+import { getErrorMessage } from '../../utils/apiError';
 
 export default function VendorDetail() {
   const { id } = useParams<{ id: string }>();
@@ -22,8 +23,8 @@ export default function VendorDetail() {
     try {
       await vendorService.updateStatus(id, status);
       await refetch();
-    } catch (err: any) {
-      setError(err?.response?.data?.error || 'Failed to update status');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to update status'));
     } finally {
       setUpdating(false);
     }

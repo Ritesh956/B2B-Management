@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useContractsQuery } from '../../hooks/useContractsQuery';
+import { type Contract } from '../../services/contracts';
 import { Download } from 'lucide-react';
 import EmptyState from '../../components/EmptyState';
 import { TableSkeleton } from '../../components/Skeletons';
@@ -13,7 +14,7 @@ export default function VendorContractList() {
   const [search, setSearch] = useState('');
   const { data, isLoading } = useContractsQuery({});
   const contracts = data?.contracts || [];
-  const filteredContracts = contracts.filter((c: any) => c.title.toLowerCase().includes(search.toLowerCase()));
+  const filteredContracts = contracts.filter((c: Contract) => c.title.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div className="page-root animate-in">
@@ -55,7 +56,7 @@ export default function VendorContractList() {
               </tr>
             </thead>
             <tbody>
-              {filteredContracts.map((c: any) => {
+              {filteredContracts.map((c: Contract) => {
                 const statusColor = CONTRACT_STATUS_COLOR[c.status] || '#94a3b8';
                 return (
                   <tr key={c.id}>

@@ -6,10 +6,10 @@ import { Role } from '../store/authStore';
 let mockState: { user: { role: string } | null };
 
 vi.mock('../store/authStore', async (importOriginal) => {
-  const actual: any = await importOriginal();
+  const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
-    useAuthStore: (selector: any) => selector(mockState),
+    useAuthStore: (selector: (state: typeof mockState) => unknown) => selector(mockState),
   };
 });
 

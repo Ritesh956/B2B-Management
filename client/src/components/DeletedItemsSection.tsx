@@ -2,10 +2,13 @@ import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import api from '../services/api';
 import { useAuthStore } from '../store/authStore';
+import { getErrorMessage } from '../utils/apiError';
+
+type DeletedItem = { id: string; type: string; name?: string; email?: string; deletedAt: string };
 
 export default function DeletedItemsSection() {
   const { user } = useAuthStore();
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<DeletedItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [restoring, setRestoring] = useState<string | null>(null);
 
@@ -13,7 +16,7 @@ export default function DeletedItemsSection() {
     try {
       const res = await api.get('/admin/deleted-items');
       setItems(res.data.items || []);
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
       toast.error('Failed to load deleted items');
     } finally {
@@ -33,9 +36,9 @@ export default function DeletedItemsSection() {
       await api.patch('/admin/restore', { id, type });
       toast.success(`${type} restored successfully`);
       fetchItems();
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      toast.error(err.response?.data?.error || 'Failed to restore item');
+      toast.error(getErrorMessage(err, 'Failed to restore item'));
     } finally {
       setRestoring(null);
     }

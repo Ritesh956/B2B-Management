@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { vendorService } from '../../services/vendors';
+import { getErrorMessage } from '../../utils/apiError';
 
 const schema = z.object({
   companyName: z.string().min(2, 'Required'),
@@ -41,8 +42,8 @@ export default function AddVendorModal({ onClose, onSuccess }: Props) {
       await vendorService.create(fd);
       onSuccess();
       onClose();
-    } catch (err: any) {
-      setApiError(err?.response?.data?.error || 'Failed to create vendor');
+    } catch (err) {
+      setApiError(getErrorMessage(err, 'Failed to create vendor'));
     }
   }, [files, onClose, onSuccess]);
 

@@ -6,7 +6,7 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom';
 let mockState: { token: string | null; isLoading: boolean };
 
 vi.mock('../store/authStore', () => ({
-  useAuthStore: (selector: any) => selector(mockState),
+  useAuthStore: (selector: (state: typeof mockState) => unknown) => selector(mockState),
 }));
 
 const renderGuarded = () =>

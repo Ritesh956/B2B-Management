@@ -34,7 +34,8 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import NotFoundPage from './pages/NotFoundPage';
 import { Toaster } from 'react-hot-toast';
 import { SkeletonTheme } from './components/Skeletons';
-import { ThemeProvider, useTheme } from './context/ThemeContext';
+import { ThemeProvider } from './context/ThemeContext';
+import { useTheme } from './hooks/useTheme';
 
 function SkeletonThemeWrapper({ children }: { children: React.ReactNode }) {
   const { theme } = useTheme();

@@ -3,8 +3,9 @@ import { render, screen } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import LoginPage from '../pages/LoginPage';
 
+const fakeAuthState = { login: vi.fn(), user: null, token: null, isLoading: false };
 vi.mock('../store/authStore', () => ({
-  useAuthStore: (selector: any) => selector({ login: vi.fn(), user: null, token: null, isLoading: false }),
+  useAuthStore: (selector: (state: typeof fakeAuthState) => unknown) => selector(fakeAuthState),
 }));
 
 describe('LoginPage', () => {

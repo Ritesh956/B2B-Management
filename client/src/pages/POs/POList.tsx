@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { type POStatus } from '../../services/pos';
 import { Role } from '../../store/authStore';
 import { useAuthStore } from '../../store/authStore';
 import RoleGate from '../../components/RoleGate';
@@ -52,9 +51,7 @@ export default function POList() {
 
   const apiParams: Record<string, string> = filtersToParams(filters);
 
-  const { data: poData, isLoading, refetch: refetchPOs } = usePOsQuery(
-    { status: apiParams.status as POStatus | undefined, ...apiParams, page, limit } as any
-  );
+  const { data: poData, isLoading, refetch: refetchPOs } = usePOsQuery({ ...apiParams, page, limit });
   const { data: vendorData } = useVendorsQuery({ limit: 100 });
   const pos = poData?.pos ?? [];
   const vendors = vendorData?.vendors ?? [];
@@ -63,7 +60,8 @@ export default function POList() {
   const pendingCount = poData?.pendingCount ?? 0;
   const totalPages = Math.ceil(total / limit);
 
-  useEffect(() => { setPage(1); }, [JSON.stringify(apiParams)]);
+  const apiParamsKey = JSON.stringify(apiParams);
+  useEffect(() => { setPage(1); }, [apiParamsKey]);
 
   const exportCsv = async () => {
     try {
@@ -75,7 +73,7 @@ export default function POList() {
       if (!res.ok) throw new Error('Failed to export CSV');
       const blob = await res.blob();
       downloadBlob(blob, 'purchase-orders.csv');
-    } catch (err) {
+    } catch {
       toast.error('Failed to export CSV');
     }
   };

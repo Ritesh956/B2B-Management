@@ -5,6 +5,7 @@ import { z } from 'zod';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
 import { useAuthStore } from '../../store/authStore';
+import { getErrorMessage } from '../../utils/apiError';
 
 const profileSchema = z.object({
   contactName: z.string().min(2, 'Contact name is required'),
@@ -12,6 +13,14 @@ const profileSchema = z.object({
   companyAddress: z.string().min(5, 'Company address is required').optional(),
 });
 type ProfileFormValues = z.infer<typeof profileSchema>;
+
+type VendorProfile = {
+  companyName: string;
+  email: string;
+  contactName: string;
+  phone: string;
+  address: string;
+};
 
 const InfoRow = ({ label, value }: { label: string; value: string }) => (
   <div>
@@ -24,7 +33,7 @@ export default function VendorProfilePage() {
   const user = useAuthStore((s) => s.user);
   const hydrate = useAuthStore((s) => s.hydrate);
 
-  const [profile, setProfile] = useState<any>(null);
+  const [profile, setProfile] = useState<VendorProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -67,8 +76,8 @@ export default function VendorProfilePage() {
       setIsSaving(true);
       await api.patch('/vendor/profile', { contactName: data.contactName, phone: data.phone });
       toast.success('Profile updated successfully');
-    } catch (err: any) {
-      toast.error(err.response?.data?.error || 'Failed to update profile');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to update profile'));
     } finally {
       setIsSaving(false);
     }
@@ -92,8 +101,8 @@ export default function VendorProfilePage() {
       setPassword('');
       setConfirmPassword('');
       toast.success('Password updated successfully');
-    } catch (err: any) {
-      setPasswordError(err?.response?.data?.error || 'Failed to update password');
+    } catch (err) {
+      setPasswordError(getErrorMessage(err, 'Failed to update password'));
     } finally {
       setIsSavingPassword(false);
     }
@@ -106,8 +115,8 @@ export default function VendorProfilePage() {
       setIsTwoFactorEnabled(enabled);
       await hydrate();
       toast.success(enabled ? 'Two-Factor Authentication enabled' : 'Two-Factor Authentication disabled');
-    } catch (err: any) {
-      toast.error(err?.response?.data?.error || 'Failed to toggle 2FA');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to toggle 2FA'));
       setIsTwoFactorEnabled(!enabled); // revert
     } finally {
       setSaving2fa(false);

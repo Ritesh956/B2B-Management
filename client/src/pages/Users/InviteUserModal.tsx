@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Role } from '../../store/authStore';
 import { inviteUser } from '../../services/users';
+import { getErrorMessage } from '../../utils/apiError';
 
 type InviteUserModalProps = {
   onClose: () => void;
@@ -22,9 +23,9 @@ export default function InviteUserModal({ onClose, onSuccess }: InviteUserModalP
     try {
       await inviteUser({ name, email, role });
       onSuccess();
-    } catch (err: any) {
+    } catch (err) {
       console.error(err);
-      setError(err.response?.data?.error || 'Failed to invite user');
+      setError(getErrorMessage(err, 'Failed to invite user'));
       setLoading(false);
     }
   };

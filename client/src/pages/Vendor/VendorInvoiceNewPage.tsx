@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import api from '../../services/api';
 import { usePOsQuery } from '../../hooks/usePOQuery';
 import { formatCurrency } from '../../utils/currency';
+import { getErrorMessage } from '../../utils/apiError';
 
 const invoiceSchema = z.object({
   poId: z.string().min(1, 'Please select a Purchase Order'),
@@ -17,7 +18,12 @@ const invoiceSchema = z.object({
     .refine((file) => file?.[0]?.type === 'application/pdf', 'Only PDF files are accepted'),
 });
 
-type InvoiceFormValues = z.infer<typeof invoiceSchema>;
+// zod's `.coerce.number()` on `amount` means the raw form input (a string
+// from the number field) and the parsed/submitted value (a number) are
+// different shapes - react-hook-form's third generic carries that through
+// so handleSubmit's callback gets the post-coercion type without a cast.
+type InvoiceFormInput = z.input<typeof invoiceSchema>;
+type InvoiceFormValues = z.output<typeof invoiceSchema>;
 
 export default function VendorInvoiceNewPage() {
   const navigate = useNavigate();
@@ -32,8 +38,8 @@ export default function VendorInvoiceNewPage() {
     handleSubmit,
     watch,
     formState: { errors },
-  } = useForm<InvoiceFormValues>({
-    resolver: zodResolver(invoiceSchema) as any,
+  } = useForm<InvoiceFormInput, unknown, InvoiceFormValues>({
+    resolver: zodResolver(invoiceSchema),
   });
 
   const selectedPoId = watch('poId');
@@ -54,8 +60,8 @@ export default function VendorInvoiceNewPage() {
 
       toast.success('Invoice submitted successfully');
       navigate('/vendor/dashboard');
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to submit invoice');
+    } catch (error) {
+      toast.error(getErrorMessage(error, 'Failed to submit invoice'));
     } finally {
       setIsSubmitting(false);
     }

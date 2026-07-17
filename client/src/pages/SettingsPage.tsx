@@ -4,6 +4,7 @@ import { accountService, type AccountNotificationPreferences } from '../services
 import api from '../services/api';
 import toast from 'react-hot-toast';
 import DeletedItemsSection from '../components/DeletedItemsSection';
+import { getErrorMessage } from '../utils/apiError';
 
 const defaultPreferences: AccountNotificationPreferences = {
   emailEnabled: true,
@@ -60,8 +61,8 @@ export default function SettingsPage() {
       setPassword('');
       setConfirmPassword('');
       setMessage('Settings saved successfully');
-    } catch (err: any) {
-      setError(err?.response?.data?.error || 'Failed to save settings');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to save settings'));
     } finally {
       setSaving(false);
     }
@@ -74,8 +75,8 @@ export default function SettingsPage() {
       setIsTwoFactorEnabled(enabled);
       await hydrate();
       toast?.success(enabled ? 'Two-Factor Authentication enabled' : 'Two-Factor Authentication disabled');
-    } catch (err: any) {
-      toast?.error(err?.response?.data?.error || 'Failed to toggle 2FA');
+    } catch (err) {
+      toast?.error(getErrorMessage(err, 'Failed to toggle 2FA'));
       setIsTwoFactorEnabled(!enabled); // revert
     } finally {
       setSaving2fa(false);

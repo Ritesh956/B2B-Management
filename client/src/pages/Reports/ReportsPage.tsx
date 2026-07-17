@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Download } from 'lucide-react';
 import api from '../../services/api';
 import { formatCurrency } from '../../utils/currency';
@@ -13,25 +13,35 @@ import {
   Legend
 } from 'recharts';
 
+type MonthlySummary = {
+  totalSpend: number;
+  totalPOs: number;
+  approvedInvoicesCount: number;
+  paidInvoicesCount: number;
+  newVendorsCount: number;
+};
+type VendorSpendRow = { vendorName: string; totalSpend: number };
+type InvoiceAgingRow = { bucket: string; amount: number; count: number };
+
 export default function ReportsPage() {
-  const [summary, setSummary] = useState<any>(null);
-  const [vendorSpend, setVendorSpend] = useState<any[]>([]);
-  const [invoiceAging, setInvoiceAging] = useState<any[]>([]);
+  const [summary, setSummary] = useState<MonthlySummary | null>(null);
+  const [vendorSpend, setVendorSpend] = useState<VendorSpendRow[]>([]);
+  const [invoiceAging, setInvoiceAging] = useState<InvoiceAgingRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [month, setMonth] = useState((new Date().getMonth() + 1).toString());
   const [year, setYear] = useState(new Date().getFullYear().toString());
 
-  const fetchSummary = async () => {
+  const fetchSummary = useCallback(async () => {
     try {
       const res = await api.get(`/reports/monthly-summary?month=${month}&year=${year}`);
       setSummary(res.data);
     } catch (err) {
       console.error(err);
     }
-  };
+  }, [month, year]);
 
-  const fetchReports = async () => {
+  const fetchReports = useCallback(async () => {
     setLoading(true);
     try {
       await fetchSummary();
@@ -44,11 +54,11 @@ export default function ReportsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [fetchSummary]);
 
   useEffect(() => {
     fetchReports();
-  }, [month, year]);
+  }, [fetchReports]);
 
   const handleExportPDF = async () => {
     try {
@@ -67,7 +77,7 @@ export default function ReportsPage() {
     }
   };
 
-  const handleExportCSV = (data: any[], filename: string) => {
+  const handleExportCSV = (data: Record<string, unknown>[], filename: string) => {
     if (!data.length) return;
     const headers = Object.keys(data[0]).join(',');
     const rows = data.map(obj => Object.values(obj).join(',')).join('\n');
@@ -173,7 +183,7 @@ export default function ReportsPage() {
                   cursor={{ fill: 'rgba(255,255,255,0.05)' }}
                   contentStyle={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: '10px' }}
                   itemStyle={{ color: 'var(--text-primary)', fontWeight: 600 }}
-                  formatter={(value: any) => formatCurrency(Number(value))}
+                  formatter={(value) => formatCurrency(Number(value))}
                 />
                 <Bar dataKey="totalSpend" fill="#06b6d4" radius={[0, 4, 4, 0]} />
               </BarChart>

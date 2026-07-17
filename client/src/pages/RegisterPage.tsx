@@ -1,8 +1,9 @@
-import { useForm } from 'react-hook-form';
+import { useForm, type UseFormRegister } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useNavigate, Link } from 'react-router-dom';
 import api from '../services/api';
+import { getErrorMessage } from '../utils/apiError';
 
 const schema = z.object({
   companyName: z.string().min(2, 'Company name must be at least 2 characters'),
@@ -17,6 +18,40 @@ const schema = z.object({
 });
 
 type FormData = z.infer<typeof schema>;
+
+function Field({
+  label,
+  name,
+  type = 'text',
+  placeholder,
+  register,
+  error,
+}: {
+  label: string;
+  name: keyof FormData;
+  type?: string;
+  placeholder?: string;
+  register: UseFormRegister<FormData>;
+  error?: string;
+}) {
+  return (
+    <div>
+      <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        {label}
+      </label>
+      <input
+        {...register(name)}
+        type={type}
+        placeholder={placeholder}
+        className="input-base"
+        style={{ width: '100%' }}
+      />
+      {error && (
+        <p style={{ color: '#ef4444', fontSize: 11, marginTop: 4 }}>{error}</p>
+      )}
+    </div>
+  );
+}
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -40,39 +75,10 @@ export default function RegisterPage() {
         phone: data.phone,
       });
       navigate('/login', { state: { registered: true } });
-    } catch (err: any) {
-      const msg = err?.response?.data?.error || 'Registration failed. Please try again.';
-      setError('root', { message: msg });
+    } catch (err) {
+      setError('root', { message: getErrorMessage(err, 'Registration failed. Please try again.') });
     }
   };
-
-  const Field = ({
-    label,
-    name,
-    type = 'text',
-    placeholder,
-  }: {
-    label: string;
-    name: keyof FormData;
-    type?: string;
-    placeholder?: string;
-  }) => (
-    <div>
-      <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-        {label}
-      </label>
-      <input
-        {...register(name)}
-        type={type}
-        placeholder={placeholder}
-        className="input-base"
-        style={{ width: '100%' }}
-      />
-      {errors[name] && (
-        <p style={{ color: '#ef4444', fontSize: 11, marginTop: 4 }}>{errors[name]?.message as string}</p>
-      )}
-    </div>
-  );
 
   return (
     <div
@@ -217,16 +223,16 @@ export default function RegisterPage() {
             <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: 'var(--text-muted)', margin: '4px 0 0' }}>
               Company info
             </p>
-            <Field label="Company Name" name="companyName" placeholder="Acme Corp" />
-            <Field label="Company Phone" name="phone" type="tel" placeholder="+91 9900000000" />
+            <Field label="Company Name" name="companyName" placeholder="Acme Corp" register={register} error={errors.companyName?.message} />
+            <Field label="Company Phone" name="phone" type="tel" placeholder="+91 9900000000" register={register} error={errors.phone?.message} />
 
             <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: 'var(--text-muted)', margin: '8px 0 0' }}>
               Your details
             </p>
-            <Field label="Your Full Name" name="name" placeholder="John Doe" />
-            <Field label="Email Address" name="email" type="email" placeholder="john@acme.com" />
-            <Field label="Password" name="password" type="password" placeholder="Min 8 characters" />
-            <Field label="Confirm Password" name="confirmPassword" type="password" placeholder="Re-enter password" />
+            <Field label="Your Full Name" name="name" placeholder="John Doe" register={register} error={errors.name?.message} />
+            <Field label="Email Address" name="email" type="email" placeholder="john@acme.com" register={register} error={errors.email?.message} />
+            <Field label="Password" name="password" type="password" placeholder="Min 8 characters" register={register} error={errors.password?.message} />
+            <Field label="Confirm Password" name="confirmPassword" type="password" placeholder="Re-enter password" register={register} error={errors.confirmPassword?.message} />
 
             <button
               type="submit"

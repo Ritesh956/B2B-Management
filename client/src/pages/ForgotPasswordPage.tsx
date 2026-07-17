@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { forgotPassword } from '../services/passwordReset';
+import { getErrorMessage } from '../utils/apiError';
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
@@ -17,8 +18,8 @@ export default function ForgotPasswordPage() {
       // Always show the same confirmation, whether or not the email has an
       // account — the backend responds identically either way.
       setSubmitted(true);
-    } catch (err: any) {
-      setError(err?.response?.data?.error || 'Something went wrong. Please try again.');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Something went wrong. Please try again.'));
     } finally {
       setLoading(false);
     }

@@ -10,10 +10,12 @@ import { formatCurrency } from '../../utils/currency';
 import { useInvoicesQuery } from '../../hooks/useInvoicesQuery';
 import { TableSkeleton } from '../../components/Skeletons';
 import CopyToClipboard from '../../components/CopyToClipboard';
-import BulkActionBar, { BulkConfirmModal, useRowSelection } from '../../components/BulkActionBar';
+import BulkActionBar, { BulkConfirmModal } from '../../components/BulkActionBar';
+import { useRowSelection } from '../../hooks/useRowSelection';
 
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import { getErrorMessage } from '../../utils/apiError';
 
 type FilterValues = { statuses: string[]; vendorId: string; minAmount: string; maxAmount: string; fromDate: string; toDate: string; createdById: string; };
 
@@ -69,7 +71,7 @@ export default function InvoiceList() {
       if (!res.ok) throw new Error('Failed to export CSV');
       const blob = await res.blob();
       downloadBlob(blob, 'invoices.csv');
-    } catch (err) {
+    } catch {
       toast.error('Failed to export CSV');
     }
   };
@@ -90,8 +92,8 @@ export default function InvoiceList() {
       }
       clearSelection();
       await refetch();
-    } catch (err: any) {
-      toast.error(err?.response?.data?.error || 'Failed to approve invoices');
+    } catch (err) {
+      toast.error(getErrorMessage(err, 'Failed to approve invoices'));
     } finally {
       setBulkLoading(false);
       setConfirmBulkApprove(false);

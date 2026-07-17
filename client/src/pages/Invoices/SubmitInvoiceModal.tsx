@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { poService } from '../../services/pos';
 import { invoiceService } from '../../services/invoices';
 import { formatCurrency } from '../../utils/currency';
+import { getErrorMessage } from '../../utils/apiError';
 
 type VendorPO = {
   id: string;
@@ -58,8 +59,8 @@ export default function SubmitInvoiceModal({ onClose, onSubmitted }: Props) {
       await invoiceService.submit({ poId, amount: Number(amount), invoicePdf: file });
       onSubmitted();
       onClose();
-    } catch (err: any) {
-      setError(err?.response?.data?.error || 'Failed to submit invoice');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to submit invoice'));
     } finally {
       setLoading(false);
     }

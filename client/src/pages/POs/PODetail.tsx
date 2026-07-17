@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import ApprovalActions from '../../components/ApprovalActions';
 import { type PurchaseOrder } from '../../services/pos';
@@ -147,9 +147,11 @@ export default function PODetail() {
   const [po, setPO] = useState<PurchaseOrder | null>(null);
   const { data, isLoading, error } = usePOQuery(id ?? '');
 
-  useEffect(() => {
+  const [prevData, setPrevData] = useState(data);
+  if (data !== prevData) {
+    setPrevData(data);
     if (data?.po) setPO(data.po);
-  }, [data]);
+  }
 
   if (isLoading && !po) return <DetailPageSkeleton />;
 

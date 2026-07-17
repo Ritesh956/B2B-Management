@@ -7,6 +7,7 @@ import ActivityFeed from '../../components/ActivityFeed';
 import { DetailPageSkeleton } from '../../components/Skeletons';
 import { formatCurrency } from '../../utils/currency';
 import { withAuthToken } from '../../utils/fileUrl';
+import { getErrorMessage } from '../../utils/apiError';
 
 export default function InvoiceDetail() {
   const { id } = useParams<{ id: string }>();
@@ -24,8 +25,8 @@ export default function InvoiceDetail() {
     try {
       await invoiceService.approve(invoice.id);
       await refetch();
-    } catch (err: any) {
-      setError(err?.response?.data?.error || 'Approve failed');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Approve failed'));
     } finally {
       setActionLoading(false);
     }
@@ -37,8 +38,8 @@ export default function InvoiceDetail() {
     try {
       await invoiceService.pay(invoice.id);
       await refetch();
-    } catch (err: any) {
-      setError(err?.response?.data?.error || 'Pay action failed');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Pay action failed'));
     } finally {
       setActionLoading(false);
     }

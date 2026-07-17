@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { getErrorMessage } from '../utils/apiError';
 
 export default function VerifyOtpPage() {
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
@@ -72,8 +73,8 @@ export default function VerifyOtpPage() {
       } else {
         navigate('/dashboard');
       }
-    } catch (err: any) {
-      setError(err?.response?.data?.error || 'Invalid OTP');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Invalid OTP'));
       setLoading(false);
     }
   };

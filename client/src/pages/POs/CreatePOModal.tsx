@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { poService } from '../../services/pos';
 import type { Vendor } from '../../services/vendors';
 import { formatCurrency } from '../../utils/currency';
+import { getErrorMessage } from '../../utils/apiError';
 
 interface Props {
   vendors: Vendor[];
@@ -64,8 +65,8 @@ export default function CreatePOModal({ vendors, onClose, onCreated }: Props) {
       });
       onCreated();
       onClose();
-    } catch (err: any) {
-      setError(err?.response?.data?.error || 'Failed to create PO');
+    } catch (err) {
+      setError(getErrorMessage(err, 'Failed to create PO'));
     } finally {
       setLoading(false);
     }

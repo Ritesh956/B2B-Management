@@ -4,11 +4,12 @@ import VendorList from '../pages/Vendors/VendorList';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
+const fakeAuthState = { user: { role: 'ADMIN' }, token: 'fake-token', isLoading: false };
 vi.mock('../store/authStore', async (importOriginal) => {
-  const actual: any = await importOriginal();
+  const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
-    useAuthStore: (selector: any) => selector({ user: { role: 'ADMIN' }, token: 'fake-token', isLoading: false }),
+    useAuthStore: (selector: (state: typeof fakeAuthState) => unknown) => selector(fakeAuthState),
   };
 });
 

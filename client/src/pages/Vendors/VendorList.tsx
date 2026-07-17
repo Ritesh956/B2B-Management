@@ -10,10 +10,12 @@ import { downloadBlob } from '../../utils/csv';
 import { useVendorsQuery } from '../../hooks/useVendorsQuery';
 import { flexRender, getCoreRowModel, getSortedRowModel, useReactTable, type ColumnDef, type SortingState } from '@tanstack/react-table';
 import CopyToClipboard from '../../components/CopyToClipboard';
-import BulkActionBar, { BulkConfirmModal, useRowSelection } from '../../components/BulkActionBar';
+import BulkActionBar, { BulkConfirmModal } from '../../components/BulkActionBar';
+import { useRowSelection } from '../../hooks/useRowSelection';
 import { TableSkeleton } from '../../components/Skeletons';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import { getErrorMessage } from '../../utils/apiError';
 
 type ConfirmAction = { type: 'verify' | 'reject'; count: number } | null;
 
@@ -142,7 +144,7 @@ export default function VendorList() {
       });
       const blob = res.data;
       downloadBlob(blob, 'selected-vendors.csv');
-    } catch (err) {
+    } catch {
       toast.error('Failed to export selected vendors');
     }
   };
@@ -154,8 +156,8 @@ export default function VendorList() {
       toast.success(`${selectedCount} vendor(s) ${action === 'verify' ? 'verified' : 'rejected'} successfully`);
       clearSelection();
       await refetch();
-    } catch (err: any) {
-      toast.error(err?.response?.data?.error || `Failed to ${action} vendors`);
+    } catch (err) {
+      toast.error(getErrorMessage(err, `Failed to ${action} vendors`));
     } finally {
       setBulkLoading(false);
       setConfirmAction(null);

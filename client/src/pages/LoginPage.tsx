@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { useAuthStore } from '../store/authStore';
+import { getErrorMessage } from '../utils/apiError';
 
 const schema = z.object({
   email: z.string().email('Enter a valid email'),
@@ -48,9 +49,8 @@ export default function LoginPage() {
         const currentUser = useAuthStore.getState().user;
         navigate(currentUser?.role === 'VENDOR' ? '/vendor/dashboard' : '/dashboard');
       }
-    } catch (err: any) {
-      const msg = err?.response?.data?.error || 'Login failed. Please try again.';
-      setError('root', { message: msg });
+    } catch (err) {
+      setError('root', { message: getErrorMessage(err, 'Login failed. Please try again.') });
     }
   };
 

@@ -17,10 +17,13 @@ const InvStatusColor: Record<string, string> = {
   PAID: '#10b981', APPROVED: '#6366f1', MATCHED: '#06b6d4', SUBMITTED: '#f59e0b', MISMATCHED: '#ef4444',
 };
 
+type RecentPO = { id: string; poNumber: string; totalAmount: number; status: string };
+type RecentInvoice = { id: string; invoiceNumber: string; amount: number; status: string };
+
 export default function VendorDashboardPage() {
   const [stats, setStats] = useState({ openPOs: 0, submittedInvoices: 0, paidInvoices: 0, activeContracts: 0 });
-  const [recentPOs, setRecentPOs] = useState<any[]>([]);
-  const [recentInvoices, setRecentInvoices] = useState<any[]>([]);
+  const [recentPOs, setRecentPOs] = useState<RecentPO[]>([]);
+  const [recentInvoices, setRecentInvoices] = useState<RecentInvoice[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -119,7 +122,7 @@ export default function VendorDashboardPage() {
             <Link to="/vendor/pos" style={{ fontSize: 12, fontWeight: 600, color: '#10b981' }}>View all →</Link>
           </div>
           <div style={{ padding: '8px 0' }}>
-            {recentPOs.length > 0 ? recentPOs.map((po: any) => (
+            {recentPOs.length > 0 ? recentPOs.map((po) => (
               <Link key={po.id} to={`/vendor/pos/${po.id}`} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 padding: '10px 20px', borderBottom: '1px solid var(--border-dim)',
@@ -153,7 +156,7 @@ export default function VendorDashboardPage() {
             <Link to="/vendor/invoices" style={{ fontSize: 12, fontWeight: 600, color: '#06b6d4' }}>View all →</Link>
           </div>
           <div style={{ padding: '8px 0' }}>
-            {recentInvoices.length > 0 ? recentInvoices.map((inv: any) => (
+            {recentInvoices.length > 0 ? recentInvoices.map((inv) => (
               <Link key={inv.id} to={`/vendor/invoices/${inv.id}`} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 padding: '10px 20px', borderBottom: '1px solid var(--border-dim)',
