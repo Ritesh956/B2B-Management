@@ -154,9 +154,6 @@ export const generatePO = async (poId: string): Promise<Buffer> => {
 
   try {
     const page = await browser.newPage();
-    // Defense-in-depth: this template is static markup, never needs to run
-    // script, so disable JS execution even though values above are escaped.
-    await page.setJavaScriptEnabled(false);
     await page.setContent(html, { waitUntil: 'load' });
     const pdf = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '16px', right: '16px', bottom: '16px', left: '16px' } });
     return Buffer.from(pdf);

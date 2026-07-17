@@ -1,15 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import LoginPage from '../pages/LoginPage';
 
-// Mock auth store
 vi.mock('../store/authStore', () => ({
-  useAuthStore: () => ({
-    login: vi.fn(),
-    error: null,
-    loading: false,
-  }),
+  useAuthStore: (selector: any) => selector({ login: vi.fn(), user: null, token: null, isLoading: false }),
 }));
 
 describe('LoginPage', () => {
@@ -20,7 +15,7 @@ describe('LoginPage', () => {
       </BrowserRouter>
     );
     expect(screen.getByText('Welcome back')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('name@company.com')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('admin@demo.com')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('••••••••')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument();
   });
