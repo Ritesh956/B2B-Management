@@ -46,13 +46,18 @@ const generatePONumber = async () => {
   const year = new Date().getFullYear();
   const prefix = `PO-${year}-`;
 
-  const lastPO = await prisma.purchaseOrder.findFirst({
-    where: { poNumber: { startsWith: prefix } },
-    orderBy: { poNumber: 'desc' },
-    select: { poNumber: true },
-  });
+  // Raw query bypasses the soft-delete extension (which only wraps
+  // findMany/findFirst/findUnique), since a soft-deleted PO still holds its
+  // poNumber in the unique index — computing "next" only from live rows
+  // would keep proposing an already-used number and collide on create.
+  const rows = await prisma.$queryRaw<{ poNumber: string }[]>`
+    SELECT "poNumber" FROM "PurchaseOrder"
+    WHERE "poNumber" LIKE ${prefix + '%'}
+    ORDER BY "poNumber" DESC
+    LIMIT 1
+  `;
 
-  const lastSequence = lastPO?.poNumber ? parseInt(lastPO.poNumber.split('-')[2] || '0', 10) : 0;
+  const lastSequence = rows[0]?.poNumber ? parseInt(rows[0].poNumber.split('-')[2] || '0', 10) : 0;
   const nextSequence = Number.isNaN(lastSequence) ? 1 : lastSequence + 1;
   return `${prefix}${String(nextSequence).padStart(4, '0')}`;
 };

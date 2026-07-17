@@ -46,7 +46,7 @@ export default function VendorInvoiceNewPage() {
       formData.append('poId', data.poId);
       formData.append('invoiceNumber', data.invoiceNumber);
       formData.append('amount', data.amount.toString());
-      formData.append('file', data.file[0]);
+      formData.append('invoicePdf', data.file[0]);
 
       await api.post('/invoices', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },

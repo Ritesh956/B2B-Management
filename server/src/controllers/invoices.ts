@@ -11,13 +11,17 @@ const generateInvoiceNumber = async () => {
   const year = new Date().getFullYear();
   const prefix = `INV-${year}-`;
 
-  const last = await prisma.invoice.findFirst({
-    where: { invoiceNumber: { startsWith: prefix } },
-    orderBy: { invoiceNumber: 'desc' },
-    select: { invoiceNumber: true },
-  });
+  // Raw query bypasses the soft-delete extension — a soft-deleted invoice
+  // still holds its invoiceNumber in the unique index, so computing "next"
+  // only from live rows would keep proposing an already-used number.
+  const rows = await prisma.$queryRaw<{ invoiceNumber: string }[]>`
+    SELECT "invoiceNumber" FROM "Invoice"
+    WHERE "invoiceNumber" LIKE ${prefix + '%'}
+    ORDER BY "invoiceNumber" DESC
+    LIMIT 1
+  `;
 
-  const lastSequence = last?.invoiceNumber ? parseInt(last.invoiceNumber.split('-')[2] || '0', 10) : 0;
+  const lastSequence = rows[0]?.invoiceNumber ? parseInt(rows[0].invoiceNumber.split('-')[2] || '0', 10) : 0;
   const nextSequence = Number.isNaN(lastSequence) ? 1 : lastSequence + 1;
 
   return `${prefix}${String(nextSequence).padStart(4, '0')}`;
