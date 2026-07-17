@@ -49,15 +49,15 @@ export default function AcceptInvitePage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white dark:bg-white dark:bg-slate-950">
+      <div className="flex min-h-screen items-center justify-center bg-white dark:bg-slate-950">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-cyan-500 border-t-transparent" />
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-white dark:bg-white dark:bg-slate-950 p-4">
-      <div className="w-full max-w-md overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-50 dark:bg-slate-900 shadow-2xl">
+    <div className="flex min-h-screen items-center justify-center bg-white dark:bg-slate-950 p-4">
+      <div className="w-full max-w-md overflow-hidden rounded-3xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-900 shadow-2xl">
         <div className="p-8">
           <div className="flex justify-center mb-6">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-400">
@@ -66,8 +66,8 @@ export default function AcceptInvitePage() {
               </svg>
             </div>
           </div>
-          <h2 className="text-center text-2xl font-bold text-slate-900 dark:text-slate-900 dark:text-white">Join the Team</h2>
-          <p className="mt-2 text-center text-sm text-slate-500 dark:text-slate-500 dark:text-slate-400">Complete your profile to accept the invitation.</p>
+          <h2 className="text-center text-2xl font-bold text-slate-900 dark:text-white">Join the Team</h2>
+          <p className="mt-2 text-center text-sm text-slate-500 dark:text-slate-400">Complete your profile to accept the invitation.</p>
 
           {error && <div className="mt-6 rounded-xl bg-red-500/10 p-3 text-sm text-red-400">{error}</div>}
           {success && (
@@ -79,33 +79,33 @@ export default function AcceptInvitePage() {
           {!success && !error.includes('Invalid') && (
             <form onSubmit={handleSubmit} className="mt-8 space-y-5">
               <div>
-                <label className="block text-sm font-medium text-slate-600 dark:text-slate-600 dark:text-slate-300">Email Address</label>
+                <label className="block text-sm font-medium text-slate-600 dark:text-slate-300">Email Address</label>
                 <input
                   type="email"
                   disabled
                   value={email}
-                  className="mt-1.5 block w-full rounded-xl border border-slate-200 dark:border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-50 dark:bg-white/5 px-4 py-3 text-sm text-slate-500 cursor-not-allowed"
+                  className="mt-1.5 block w-full rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-4 py-3 text-sm text-slate-500 cursor-not-allowed"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 dark:text-slate-600 dark:text-slate-300">Full Name</label>
+                <label className="block text-sm font-medium text-slate-600 dark:text-slate-300">Full Name</label>
                 <input
                   type="text"
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="mt-1.5 block w-full rounded-xl border border-slate-200 dark:border-slate-200 dark:border-white/10 bg-white dark:bg-white dark:bg-slate-950 px-4 py-3 text-sm text-slate-900 dark:text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className="mt-1.5 block w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950 px-4 py-3 text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-600 dark:text-slate-600 dark:text-slate-300">Create Password</label>
+                <label className="block text-sm font-medium text-slate-600 dark:text-slate-300">Create Password</label>
                 <input
                   type="password"
                   required
                   minLength={6}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="mt-1.5 block w-full rounded-xl border border-slate-200 dark:border-slate-200 dark:border-white/10 bg-white dark:bg-white dark:bg-slate-950 px-4 py-3 text-sm text-slate-900 dark:text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className="mt-1.5 block w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950 px-4 py-3 text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   placeholder="••••••••"
                 />
               </div>

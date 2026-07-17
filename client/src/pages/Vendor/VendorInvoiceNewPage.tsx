@@ -70,21 +70,21 @@ export default function VendorInvoiceNewPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-900 dark:text-white">Submit New Invoice</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Submit New Invoice</h1>
         <p className="mt-1 text-sm text-slate-500">Submit an invoice against an approved purchase order.</p>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="rounded-3xl border border-slate-200 dark:border-slate-200 dark:border-white/10 bg-white dark:bg-slate-50 dark:bg-slate-900 p-8 shadow-sm">
+      <form onSubmit={handleSubmit(onSubmit)} className="rounded-3xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-8 shadow-sm">
         <div className="space-y-6">
           {/* PO Selection */}
           <div>
-            <label className="mb-2 block text-sm font-medium text-slate-900 dark:text-slate-600 dark:text-slate-300">
+            <label className="mb-2 block text-sm font-medium text-slate-900 dark:text-slate-300">
               Select Purchase Order
             </label>
             <select
               {...register('poId')}
-              className={`w-full rounded-xl border bg-slate-50 dark:bg-slate-800/50 px-4 py-3 text-sm text-slate-900 dark:text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition ${
-                errors.poId ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20' : 'border-slate-200 dark:border-slate-200 dark:border-white/10 focus:border-emerald-500/50'
+              className={`w-full rounded-xl border bg-slate-50 dark:bg-slate-800/50 px-4 py-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition ${
+                errors.poId ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20' : 'border-slate-200 dark:border-white/10 focus:border-emerald-500/50'
               }`}
             >
               <option value="">Select an approved PO</option>
@@ -101,21 +101,21 @@ export default function VendorInvoiceNewPage() {
           {selectedPO && (
             <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
               <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">PO Details Reference</p>
-              <p className="mt-1 text-xs text-slate-600 dark:text-slate-600 dark:text-slate-300">Total Approved Amount: {formatCurrency(selectedPO.totalAmount)}</p>
+              <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">Total Approved Amount: {formatCurrency(selectedPO.totalAmount)}</p>
             </div>
           )}
 
           {/* Invoice Number */}
           <div>
-            <label className="mb-2 block text-sm font-medium text-slate-900 dark:text-slate-600 dark:text-slate-300">
+            <label className="mb-2 block text-sm font-medium text-slate-900 dark:text-slate-300">
               Invoice Number
             </label>
             <input
               type="text"
               {...register('invoiceNumber')}
               placeholder="e.g. INV-2026-001"
-              className={`w-full rounded-xl border bg-slate-50 dark:bg-slate-800/50 px-4 py-3 text-sm text-slate-900 dark:text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition ${
-                errors.invoiceNumber ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20' : 'border-slate-200 dark:border-slate-200 dark:border-white/10 focus:border-emerald-500/50'
+              className={`w-full rounded-xl border bg-slate-50 dark:bg-slate-800/50 px-4 py-3 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition ${
+                errors.invoiceNumber ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20' : 'border-slate-200 dark:border-white/10 focus:border-emerald-500/50'
               }`}
             />
             {errors.invoiceNumber && <p className="mt-2 text-sm text-red-400">{errors.invoiceNumber.message}</p>}
@@ -123,7 +123,7 @@ export default function VendorInvoiceNewPage() {
 
           {/* Invoice Amount */}
           <div>
-            <label className="mb-2 block text-sm font-medium text-slate-900 dark:text-slate-600 dark:text-slate-300">
+            <label className="mb-2 block text-sm font-medium text-slate-900 dark:text-slate-300">
               Invoice Amount (₹)
             </label>
             <input
@@ -131,8 +131,8 @@ export default function VendorInvoiceNewPage() {
               step="0.01"
               {...register('amount')}
               placeholder="0.00"
-              className={`w-full rounded-xl border bg-slate-50 dark:bg-slate-800/50 px-4 py-3 text-sm text-slate-900 dark:text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition ${
-                errors.amount ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20' : 'border-slate-200 dark:border-slate-200 dark:border-white/10 focus:border-emerald-500/50'
+              className={`w-full rounded-xl border bg-slate-50 dark:bg-slate-800/50 px-4 py-3 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition ${
+                errors.amount ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20' : 'border-slate-200 dark:border-white/10 focus:border-emerald-500/50'
               }`}
             />
             {errors.amount && <p className="mt-2 text-sm text-red-400">{errors.amount.message}</p>}
@@ -140,26 +140,26 @@ export default function VendorInvoiceNewPage() {
 
           {/* PDF Upload */}
           <div>
-            <label className="mb-2 block text-sm font-medium text-slate-900 dark:text-slate-600 dark:text-slate-300">
+            <label className="mb-2 block text-sm font-medium text-slate-900 dark:text-slate-300">
               Invoice PDF
             </label>
             <input
               type="file"
               accept=".pdf"
               {...register('file')}
-              className={`w-full rounded-xl border bg-slate-50 dark:bg-slate-800/50 px-4 py-3 text-sm text-slate-500 dark:text-slate-500 dark:text-slate-400 file:mr-4 file:rounded-full file:border-0 file:bg-emerald-50 dark:file:bg-emerald-500/20 file:px-4 file:py-2 file:text-sm file:font-medium file:text-emerald-700 dark:file:text-emerald-300 hover:file:bg-emerald-100 dark:hover:file:bg-emerald-500/30 transition focus:outline-none focus:ring-2 focus:ring-emerald-500/50 ${
-                errors.file ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20' : 'border-slate-200 dark:border-slate-200 dark:border-white/10 focus:border-emerald-500/50'
+              className={`w-full rounded-xl border bg-slate-50 dark:bg-slate-800/50 px-4 py-3 text-sm text-slate-500 dark:text-slate-400 file:mr-4 file:rounded-full file:border-0 file:bg-emerald-50 dark:file:bg-emerald-500/20 file:px-4 file:py-2 file:text-sm file:font-medium file:text-emerald-700 dark:file:text-emerald-300 hover:file:bg-emerald-100 dark:hover:file:bg-emerald-500/30 transition focus:outline-none focus:ring-2 focus:ring-emerald-500/50 ${
+                errors.file ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20' : 'border-slate-200 dark:border-white/10 focus:border-emerald-500/50'
               }`}
             />
             {errors.file && <p className="mt-2 text-sm text-red-400">{errors.file.message as string}</p>}
           </div>
         </div>
 
-        <div className="mt-8 flex items-center justify-end gap-4 border-t border-slate-200 dark:border-slate-200 dark:border-white/10 pt-6">
+        <div className="mt-8 flex items-center justify-end gap-4 border-t border-slate-200 dark:border-white/10 pt-6">
           <button
             type="button"
             onClick={() => navigate('/vendor/dashboard')}
-            className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 dark:text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-50 dark:bg-white/5 transition"
+            className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-50 dark:bg-white/5 transition"
           >
             Cancel
           </button>

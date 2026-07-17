@@ -43,7 +43,7 @@ export default function ActivityFeed({ entity, entityId }: { entity: string; ent
     if (act.includes('REJECT') || act.includes('MISMATCH')) return 'bg-red-500/15 text-red-400 border border-red-500/30';
     if (act.includes('UPDATE') || act.includes('EDIT')) return 'bg-amber-500/15 text-amber-400 border border-amber-500/30';
     if (act.includes('UPLOAD')) return 'bg-purple-500/15 text-purple-400 border border-purple-500/30';
-    return 'bg-slate-500/15 text-slate-500 dark:text-slate-500 dark:text-slate-400 border border-slate-500/30';
+    return 'bg-slate-500/15 text-slate-500 dark:text-slate-400 border border-slate-500/30';
   };
 
   const getRoleColor = (role: string) => {
