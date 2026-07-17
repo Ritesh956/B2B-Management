@@ -48,6 +48,11 @@ enum InvoiceStatus {
   PAID
 }
 
+enum AuthTokenPurpose {
+  PASSWORD_RESET
+  INVITE
+}
+
 model User {
   id                      String   @id @default(uuid())
   name                    String
@@ -65,8 +70,28 @@ model User {
   purchaseOrders PurchaseOrder[] @relation("CreatedBy")
   auditLogs      AuditLog[]
   notifications  Notification[]
+  authTokens     AuthToken[]
 
   @@index([email])
+}
+
+// Backs the password-reset and user-invite flows. Both previously stored
+// their tokens in a plain in-memory Map, which is wiped on every deploy/
+// restart/scale event - on Render's free tier (which sleeps after ~15min
+// idle) that meant a reset or invite link was routinely dead by the time
+// its recipient clicked it. Persisting here survives restarts.
+model AuthToken {
+  id        String           @id @default(uuid())
+  token     String           @unique
+  userId    String
+  user      User             @relation(fields: [userId], references: [id])
+  purpose   AuthTokenPurpose
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([token])
+  @@index([userId])
 }
 
 

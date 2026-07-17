@@ -6,8 +6,42 @@ import { prisma } from '../src/config/prisma';
 import { enqueueEmail } from '../src/queues';
 import bcrypt from 'bcrypt';
 
-const mockTxUserCreate = vi.fn();
-const mockTxVendorCreate = vi.fn();
+// vi.mock factories are hoisted above all other top-level code (including
+// `const` declarations that appear earlier in the file), so anything the
+// factory below needs must be created through vi.hoisted() rather than a
+// plain module-scope const - otherwise it's a TDZ ReferenceError at import
+// time. Lightweight stateful fake standing in for the AuthToken table, so
+// the password-reset "full flow" test (create -> validate -> use -> reuse
+// fails) exercises real create/find/mark-used semantics instead of just
+// asserting each mocked call in isolation.
+const {
+  mockTxUserCreate,
+  mockTxVendorCreate,
+  mockAuthTokenCreate,
+  mockAuthTokenFindUnique,
+  mockAuthTokenUpdate,
+  resetAuthTokenRows,
+} = vi.hoisted(() => {
+  let rows: any[] = [];
+  return {
+    mockTxUserCreate: vi.fn(),
+    mockTxVendorCreate: vi.fn(),
+    mockAuthTokenCreate: vi.fn(({ data }: any) => {
+      const row = { ...data, usedAt: null };
+      rows.push(row);
+      return Promise.resolve(row);
+    }),
+    mockAuthTokenFindUnique: vi.fn(({ where }: any) =>
+      Promise.resolve(rows.find((r) => r.token === where.token) ?? null)
+    ),
+    mockAuthTokenUpdate: vi.fn(({ where, data }: any) => {
+      const row = rows.find((r) => r.token === where.token);
+      if (row) Object.assign(row, data);
+      return Promise.resolve(row);
+    }),
+    resetAuthTokenRows: () => { rows = []; },
+  };
+});
 
 vi.mock('../src/config/prisma', () => ({
   prisma: {
@@ -22,12 +56,15 @@ vi.mock('../src/config/prisma', () => ({
     auditLog: {
       create: vi.fn(),
     },
-    $transaction: vi.fn((cb: any) =>
-      cb({
-        user: { create: mockTxUserCreate },
-        vendor: { create: mockTxVendorCreate },
-      })
-    ),
+    authToken: {
+      create: mockAuthTokenCreate,
+      findUnique: mockAuthTokenFindUnique,
+      update: mockAuthTokenUpdate,
+    },
+    $transaction: vi.fn((arg: any) => (Array.isArray(arg) ? Promise.all(arg) : arg({
+      user: { create: mockTxUserCreate },
+      vendor: { create: mockTxVendorCreate },
+    }))),
   },
 }));
 
@@ -51,6 +88,7 @@ app.use('/api/v1/auth', authRoutes);
 describe('Auth API', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetAuthTokenRows();
   });
 
   describe('POST /api/v1/auth/register', () => {

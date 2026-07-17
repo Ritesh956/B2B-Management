@@ -1,17 +1,13 @@
 import { Request, Response } from 'express';
 import { prisma } from '../config/prisma';
 import { AuthRequest } from '../middlewares/authenticate';
-import { Role, UserStatus } from '@prisma/client';
+import { Role, UserStatus, AuthTokenPurpose } from '@prisma/client';
 import crypto from 'crypto';
 import bcrypt from 'bcrypt';
-import { createClient } from 'redis';
+import { enqueueEmail } from '../queues';
 
-const inviteStore = new Map<string, string>();
-const redisClient = {
-  setEx: async (key: string, _ttl: number, value: string) => { inviteStore.set(key, value); },
-  get: async (key: string) => inviteStore.get(key) ?? null,
-  del: async (key: string) => { inviteStore.delete(key); },
-};
+const INVITE_TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const clientUrl = (process.env.CLIENT_URL || 'https://rit-vendor.vercel.app').replace(/\/$/, '');
 
 export const listUsers = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -61,9 +57,21 @@ export const inviteUser = async (req: AuthRequest, res: Response): Promise<void>
     });
 
     const token = crypto.randomBytes(32).toString('hex');
-    await redisClient.setEx(`invite:${token}`, 86400, user.id); // 24 hours
+    await prisma.authToken.create({
+      data: {
+        token,
+        userId: user.id,
+        purpose: AuthTokenPurpose.INVITE,
+        expiresAt: new Date(Date.now() + INVITE_TOKEN_TTL_MS),
+      },
+    });
 
-    console.log(`[INVITE EMAIL SIMULATION] http://localhost:5173/accept-invite/${token}`);
+    const inviteLink = `${clientUrl}/accept-invite/${token}`;
+    await enqueueEmail({
+      to: user.email,
+      subject: 'You\'ve been invited to VendorHub',
+      html: `<p>An administrator invited you to join VendorHub as ${role}. This link expires in 24 hours:</p><p><a href="${inviteLink}">${inviteLink}</a></p>`,
+    });
 
     res.status(201).json({ message: 'User invited successfully' });
   } catch (err) {
@@ -74,14 +82,14 @@ export const inviteUser = async (req: AuthRequest, res: Response): Promise<void>
 
 export const getInviteToken = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { token } = req.params;
-    const userId = await redisClient.get(`invite:${token}`);
-    if (!userId) {
+    const { token } = req.params as { token: string };
+    const entry = await prisma.authToken.findUnique({ where: { token } });
+    if (!entry || entry.purpose !== AuthTokenPurpose.INVITE || entry.usedAt || entry.expiresAt < new Date()) {
       res.status(404).json({ error: 'Invalid or expired invite token' });
       return;
     }
 
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } });
+    const user = await prisma.user.findUnique({ where: { id: entry.userId }, select: { email: true, name: true } });
     if (!user) {
       res.status(404).json({ error: 'User not found' });
       return;
@@ -96,30 +104,31 @@ export const getInviteToken = async (req: Request, res: Response): Promise<void>
 
 export const acceptInvite = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { token } = req.params;
+    const { token } = req.params as { token: string };
     const { password, name } = req.body;
     if (!password || !name) {
       res.status(400).json({ error: 'Password and name are required' });
       return;
     }
 
-    const userId = await redisClient.get(`invite:${token}`);
-    if (!userId) {
+    const entry = await prisma.authToken.findUnique({ where: { token } });
+    if (!entry || entry.purpose !== AuthTokenPurpose.INVITE || entry.usedAt || entry.expiresAt < new Date()) {
       res.status(404).json({ error: 'Invalid or expired invite token' });
       return;
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        name,
-        password: hashedPassword,
-        status: UserStatus.ACTIVE,
-      }
-    });
-
-    await redisClient.del(`invite:${token}`);
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: entry.userId },
+        data: {
+          name,
+          password: hashedPassword,
+          status: UserStatus.ACTIVE,
+        },
+      }),
+      prisma.authToken.update({ where: { token }, data: { usedAt: new Date() } }),
+    ]);
 
     res.status(200).json({ message: 'Invite accepted successfully' });
   } catch (err) {

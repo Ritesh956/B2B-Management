@@ -2,9 +2,8 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { Role } from '@prisma/client';
+import { Role, AuthTokenPurpose } from '@prisma/client';
 import { AuthRequest } from '../middlewares/authenticate.js';
-import { createClient } from 'redis';
 import { enqueueEmail } from '../queues/index.js';
 import { prisma } from '../config/prisma';
 
@@ -16,7 +15,11 @@ const redisClient = {
 };
 
 const RESET_TOKEN_TTL_MS = 30 * 60 * 1000; // 30 minutes
-const resetTokenStore = new Map<string, { userId: string; expiresAt: number }>();
+// Falls back to the deployed client's actual domain rather than localhost —
+// a reset/invite link built from localhost is dead on arrival for every
+// real user, which is exactly what was happening before this fell back
+// correctly.
+const clientUrl = (process.env.CLIENT_URL || 'https://rit-vendor.vercel.app').replace(/\/$/, '');
 
 // ─── POST /api/auth/register ──────────────────────────────────────────────────
 export const register = async (req: Request, res: Response): Promise<void> => {
@@ -407,10 +410,16 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
     // which emails have an account.
     if (user && user.isActive) {
       const token = crypto.randomBytes(32).toString('hex');
-      resetTokenStore.set(token, { userId: user.id, expiresAt: Date.now() + RESET_TOKEN_TTL_MS });
+      await prisma.authToken.create({
+        data: {
+          token,
+          userId: user.id,
+          purpose: AuthTokenPurpose.PASSWORD_RESET,
+          expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS),
+        },
+      });
 
-      const resetLink = `http://localhost:5173/reset-password/${token}`;
-      console.log(`[PASSWORD RESET EMAIL SIMULATION] ${resetLink}`);
+      const resetLink = `${clientUrl}/reset-password/${token}`;
 
       await enqueueEmail({
         to: user.email,
@@ -428,16 +437,20 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
 
 // ─── GET /api/auth/reset-password/:token ──────────────────────────────────────
 export const validateResetToken = async (req: Request, res: Response): Promise<void> => {
-  const { token } = req.params as { token: string };
-  const entry = resetTokenStore.get(token);
+  try {
+    const { token } = req.params as { token: string };
+    const entry = await prisma.authToken.findUnique({ where: { token } });
 
-  if (!entry || entry.expiresAt < Date.now()) {
-    resetTokenStore.delete(token);
-    res.status(404).json({ error: 'This reset link is invalid or has expired' });
-    return;
+    if (!entry || entry.purpose !== AuthTokenPurpose.PASSWORD_RESET || entry.usedAt || entry.expiresAt < new Date()) {
+      res.status(404).json({ error: 'This reset link is invalid or has expired' });
+      return;
+    }
+
+    res.status(200).json({ valid: true });
+  } catch (err) {
+    console.error('[validateResetToken]', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
-
-  res.status(200).json({ valid: true });
 };
 
 // ─── POST /api/auth/reset-password/:token ─────────────────────────────────────
@@ -451,16 +464,17 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const entry = resetTokenStore.get(token);
-    if (!entry || entry.expiresAt < Date.now()) {
-      resetTokenStore.delete(token);
+    const entry = await prisma.authToken.findUnique({ where: { token } });
+    if (!entry || entry.purpose !== AuthTokenPurpose.PASSWORD_RESET || entry.usedAt || entry.expiresAt < new Date()) {
       res.status(404).json({ error: 'This reset link is invalid or has expired' });
       return;
     }
 
     const hashed = await bcrypt.hash(password, 10);
-    await prisma.user.update({ where: { id: entry.userId }, data: { password: hashed } });
-    resetTokenStore.delete(token);
+    await prisma.$transaction([
+      prisma.user.update({ where: { id: entry.userId }, data: { password: hashed } }),
+      prisma.authToken.update({ where: { token }, data: { usedAt: new Date() } }),
+    ]);
 
     res.status(200).json({ message: 'Password reset successfully' });
   } catch (err) {

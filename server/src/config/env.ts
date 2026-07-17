@@ -16,6 +16,10 @@ const envSchema = z.object({
   SMTP_USER: z.string().min(1),
   SMTP_PASS: z.string().min(1),
   PORT: z.string().optional(),
+  // Base URL of the deployed client, used to build reset-password/accept-
+  // invite links. Optional with a fallback (see auth.ts/users.ts) so a
+  // missing env var doesn't crash the whole server over two email links.
+  CLIENT_URL: z.string().optional(),
 });
 
 const parsed = envSchema.safeParse(process.env);
