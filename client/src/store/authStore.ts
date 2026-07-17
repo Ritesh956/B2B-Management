@@ -45,53 +45,43 @@ export const useAuthStore = create<AuthState>((set) => ({
   // hydrate() has had a chance to resolve.
   isLoading: !!localStorage.getItem('token'),
 
+  // NOTE: login/verifyOtp must NOT touch the global `isLoading` flag — App.tsx
+  // unmounts the whole router (spinner screen) while it's true, which kills
+  // the login page mid-submit and makes its navigate() a no-op, bouncing the
+  // user back to /login even though the login succeeded. `isLoading` belongs
+  // to hydrate() alone; the login form has its own isSubmitting state.
   login: async (email, password) => {
-    set({ isLoading: true });
-    try {
-      const { data } = await api.post('/auth/login', { email, password });
-      
-      if (data.requiresOtp) {
-        set({ isLoading: false });
-        return data; // { requiresOtp: true, tempToken: string }
-      }
+    const { data } = await api.post('/auth/login', { email, password });
 
-      localStorage.setItem('token', data.token);
-
-      // Fetch user profile immediately after login
-      const me = await api.get('/auth/me');
-
-      set({
-        token: data.token,
-        user: me.data.user,
-        isLoading: false
-      });
-
-      return {};
-    } catch (err) {
-      set({ isLoading: false });
-      throw err;
+    if (data.requiresOtp) {
+      return data; // { requiresOtp: true, tempToken: string }
     }
+
+    localStorage.setItem('token', data.token);
+
+    // Fetch user profile immediately after login
+    const me = await api.get('/auth/me');
+
+    set({
+      token: data.token,
+      user: me.data.user,
+    });
+
+    return {};
   },
 
   verifyOtp: async (tempToken, otp) => {
-    set({ isLoading: true });
-    try {
-      const { data } = await api.post('/auth/verify-otp', { otp }, {
-        headers: { Authorization: `Bearer ${tempToken}` }
-      });
+    const { data } = await api.post('/auth/verify-otp', { otp }, {
+      headers: { Authorization: `Bearer ${tempToken}` }
+    });
 
-      localStorage.setItem('token', data.token);
-      const me = await api.get('/auth/me');
+    localStorage.setItem('token', data.token);
+    const me = await api.get('/auth/me');
 
-      set({
-        token: data.token,
-        user: me.data.user,
-        isLoading: false
-      });
-    } catch (err) {
-      set({ isLoading: false });
-      throw err;
-    }
+    set({
+      token: data.token,
+      user: me.data.user,
+    });
   },
 
   logout: () => {
