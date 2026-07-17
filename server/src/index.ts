@@ -27,6 +27,11 @@ import { prisma } from './config/prisma';
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Render (and any reverse proxy) puts the real client IP in X-Forwarded-For.
+// Without this, express-rate-limit keys every request on the proxy's IP, so
+// all users share one rate-limit bucket and lock each other out.
+app.set('trust proxy', 1);
+
 const staticAllowedOrigins = ['http://localhost:5173', 'http://localhost:3000'];
 
 app.use(helmet());
