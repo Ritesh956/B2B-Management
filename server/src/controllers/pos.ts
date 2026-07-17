@@ -16,6 +16,7 @@ import { generatePO } from '../services/poPdf';
 import { stringify } from 'csv-stringify/sync';
 import { notifyUser } from '../utils/notify';
 import { csvSafe } from '../utils/csvSafe';
+import { retryOnUniqueConflict } from '../utils/retryOnUniqueConflict';
 
 const { PENDING, APPROVED, REJECTED } = APPROVAL_STEP_STATUS;
 
@@ -112,22 +113,29 @@ export const createPO = async (req: AuthRequest, res: Response): Promise<void> =
     const { items: normalizedItems, totalAmount } = buildItemsAndTotal(items);
     const approvalChain = createApprovalChain(totalAmount);
 
-    const po = await prisma.purchaseOrder.create({
-      data: {
-        poNumber: await generatePONumber(),
-        vendorId,
-        createdById: req.user.id,
-        status: POStatus.PENDING_APPROVAL,
-        items: normalizedItems as any,
-        totalAmount,
-        approvalChain: approvalChain as any,
-        currentApproverIndex: 0,
+    const userId = req.user.id;
+    const po = await retryOnUniqueConflict(
+      async () => {
+        const poNumber = await generatePONumber();
+        return prisma.purchaseOrder.create({
+          data: {
+            poNumber,
+            vendorId,
+            createdById: userId,
+            status: POStatus.PENDING_APPROVAL,
+            items: normalizedItems as any,
+            totalAmount,
+            approvalChain: approvalChain as any,
+            currentApproverIndex: 0,
+          },
+          include: {
+            vendor: true,
+            createdBy: { select: { id: true, name: true, email: true, role: true } },
+          },
+        });
       },
-      include: {
-        vendor: true,
-        createdBy: { select: { id: true, name: true, email: true, role: true } },
-      },
-    });
+      'poNumber'
+    );
 
     await prisma.auditLog.create({
       data: {

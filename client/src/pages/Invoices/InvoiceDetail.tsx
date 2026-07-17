@@ -6,6 +6,7 @@ import { useInvoiceQuery } from '../../hooks/useInvoicesQuery';
 import ActivityFeed from '../../components/ActivityFeed';
 import { DetailPageSkeleton } from '../../components/Skeletons';
 import { formatCurrency } from '../../utils/currency';
+import { withAuthToken } from '../../utils/fileUrl';
 
 export default function InvoiceDetail() {
   const { id } = useParams<{ id: string }>();
@@ -129,7 +130,7 @@ export default function InvoiceDetail() {
             </h2>
             {invoice.fileUrl ? (
               <iframe
-                src={invoice.fileUrl}
+                src={withAuthToken(invoice.fileUrl)}
                 title="Invoice PDF Preview"
                 style={{
                   width: '100%', height: '520px', borderRadius: '10px',

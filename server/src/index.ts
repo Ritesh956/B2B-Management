@@ -3,7 +3,6 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import path from 'path';
 import { createServer } from 'http';
 import rateLimit from 'express-rate-limit';
 import { initSocket } from './utils/socket';
@@ -20,6 +19,7 @@ import vendorPortalRoutes from './routes/vendorPortal';
 import reportsRoutes from './routes/reports';
 import userRoutes from './routes/users';
 import adminRoutes from './routes/admin';
+import fileRoutes from './routes/files';
 import { startContractExpiryJob } from './services/contractExpiryJob';
 import { initQueues } from './queues';
 import { prisma } from './config/prisma';
@@ -49,7 +49,11 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+// Was express.static (no auth at all) - any invoice/contract/vendor-document
+// PDF was readable by anyone with (or guessing) its URL. Now goes through
+// getUploadedFile, which requires a valid session and checks the requester
+// actually owns/may view that specific file.
+app.use('/uploads', fileRoutes);
 
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,

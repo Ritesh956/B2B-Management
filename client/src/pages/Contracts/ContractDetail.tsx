@@ -5,6 +5,7 @@ import { ContractStatus, type Contract } from '../../services/contracts';
 import RoleGate from '../../components/RoleGate';
 import { useContractQuery } from '../../hooks/useContractsQuery';
 import { updateContractStatus } from '../../services/contracts';
+import { withAuthToken } from '../../utils/fileUrl';
 
 export default function ContractDetail() {
   const { id } = useParams<{ id: string }>();
@@ -183,14 +184,14 @@ export default function ContractDetail() {
           <h2 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '16px' }}>Contract Document</h2>
           <div className="card-sm" style={{ padding: '16px' }}>
             <iframe
-              src={contract.fileUrl}
+              src={withAuthToken(contract.fileUrl)}
               style={{ width: '100%', height: '384px', borderRadius: '8px', border: '1px solid var(--border-dim)' }}
               title={contract.title}
             />
           </div>
           <div style={{ marginTop: '12px' }}>
             <a
-              href={contract.fileUrl}
+              href={withAuthToken(contract.fileUrl)}
               target="_blank"
               rel="noopener noreferrer"
               style={{ color: '#67e8f9', fontWeight: 500, textDecoration: 'none', fontSize: '13px' }}

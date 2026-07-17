@@ -5,12 +5,29 @@ import { enqueueEmail } from '../queues';
 import { notifyUser } from '../utils/notify';
 
 export const startContractExpiryJob = () => {
-  // Run daily at 9 AM (0 9 * * *)
+  // Run daily at 9 AM IST. Without an explicit timezone, node-cron uses the
+  // server's system clock - Render runs UTC, so "9 AM" would actually fire
+  // at 2:30 PM IST, not the intended start-of-business alert time.
   cron.schedule('0 9 * * *', async () => {
     console.log('[ContractExpiryJob] Running contract expiry check...');
 
     try {
       const now = new Date();
+
+      // This job only ever emailed an alert for contracts expiring soon -
+      // it never actually flipped Contract.status to EXPIRED once endDate
+      // passed, so the stored status silently went stale forever (most
+      // reads work around this by checking endDate directly instead of
+      // trusting status, but that's a workaround, not a fix). Do the actual
+      // transition first.
+      const expiredResult = await prisma.contract.updateMany({
+        where: { status: ContractStatus.ACTIVE, endDate: { lt: now } },
+        data: { status: ContractStatus.EXPIRED },
+      });
+      if (expiredResult.count > 0) {
+        console.log(`[ContractExpiryJob] Marked ${expiredResult.count} contract(s) as EXPIRED.`);
+      }
+
       const thirtyDaysFromNow = new Date();
       thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
 
@@ -68,7 +85,7 @@ export const startContractExpiryJob = () => {
     } catch (err) {
       console.error('[ContractExpiryJob] Error:', err);
     }
-  });
+  }, { timezone: 'Asia/Kolkata' });
 
-  console.log('[ContractExpiryJob] Scheduled to run daily at 09:00 AM');
+  console.log('[ContractExpiryJob] Scheduled to run daily at 09:00 AM IST');
 };

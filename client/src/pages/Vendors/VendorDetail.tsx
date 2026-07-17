@@ -6,6 +6,7 @@ import { Role } from '../../store/authStore';
 import { useVendorQuery } from '../../hooks/useVendorsQuery';
 import ActivityFeed from '../../components/ActivityFeed';
 import { DetailPageSkeleton } from '../../components/Skeletons';
+import { withAuthToken } from '../../utils/fileUrl';
 
 export default function VendorDetail() {
   const { id } = useParams<{ id: string }>();
@@ -213,7 +214,7 @@ export default function VendorDetail() {
                       )}
                     </div>
                     <a
-                      href={doc.url}
+                      href={withAuthToken(doc.url)}
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{ color: 'var(--accent-primary)', opacity: 0.8, transition: 'opacity 0.15s' }}

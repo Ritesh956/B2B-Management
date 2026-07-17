@@ -3,6 +3,7 @@ import { useContractsQuery } from '../../hooks/useContractsQuery';
 import { Download } from 'lucide-react';
 import EmptyState from '../../components/EmptyState';
 import { TableSkeleton } from '../../components/Skeletons';
+import { withAuthToken } from '../../utils/fileUrl';
 
 const CONTRACT_STATUS_COLOR: Record<string, string> = {
   ACTIVE: '#10b981', EXPIRED: '#ef4444', TERMINATED: '#f59e0b', DRAFT: '#94a3b8',
@@ -70,7 +71,7 @@ export default function VendorContractList() {
                     </td>
                     <td style={{ textAlign: 'right' }}>
                       {c.fileUrl && (
-                        <a href={c.fileUrl} target="_blank" rel="noreferrer" style={{
+                        <a href={withAuthToken(c.fileUrl)} target="_blank" rel="noreferrer" style={{
                           display: 'inline-flex', alignItems: 'center', gap: 6,
                           fontSize: 12.5, fontWeight: 600, color: '#10b981',
                           textDecoration: 'none', transition: 'color 150ms',

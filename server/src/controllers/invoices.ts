@@ -7,6 +7,7 @@ import { buildLocalFileUrl } from '../config/s3';
 import { stringify } from 'csv-stringify/sync';
 import { notifyUser } from '../utils/notify';
 import { csvSafe } from '../utils/csvSafe';
+import { retryOnUniqueConflict } from '../utils/retryOnUniqueConflict';
 
 const generateInvoiceNumber = async () => {
   const year = new Date().getFullYear();
@@ -95,34 +96,40 @@ export const submitInvoice = async (req: AuthRequest, res: Response): Promise<vo
 
     const status = numericAmount === po.totalAmount ? InvoiceStatus.MATCHED : InvoiceStatus.MISMATCHED;
 
-    const invoice = await prisma.invoice.create({
-      data: {
-        invoiceNumber: await generateInvoiceNumber(),
-        poId: po.id,
-        vendorId: po.vendorId,
-        amount: numericAmount,
-        status,
-        fileUrl: buildLocalFileUrl(file.path),
-      },
-      include: {
-        po: {
-          select: {
-            id: true,
-            poNumber: true,
-            totalAmount: true,
-            status: true,
-            createdAt: true,
+    const invoice = await retryOnUniqueConflict(
+      async () => {
+        const invoiceNumber = await generateInvoiceNumber();
+        return prisma.invoice.create({
+          data: {
+            invoiceNumber,
+            poId: po.id,
+            vendorId: po.vendorId,
+            amount: numericAmount,
+            status,
+            fileUrl: buildLocalFileUrl(file.path),
           },
-        },
-        vendor: {
-          select: {
-            id: true,
-            companyName: true,
-            email: true,
+          include: {
+            po: {
+              select: {
+                id: true,
+                poNumber: true,
+                totalAmount: true,
+                status: true,
+                createdAt: true,
+              },
+            },
+            vendor: {
+              select: {
+                id: true,
+                companyName: true,
+                email: true,
+              },
+            },
           },
-        },
+        });
       },
-    });
+      'invoiceNumber'
+    );
 
     await prisma.auditLog.create({
       data: {
