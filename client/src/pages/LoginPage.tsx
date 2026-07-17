@@ -189,6 +189,11 @@ export default function LoginPage() {
                 className="input-base"
               />
               {errors.password && <p style={{ fontSize: 12, color: '#f87171', marginTop: 5 }}>{errors.password.message}</p>}
+              <p style={{ marginTop: 8, textAlign: 'right' }}>
+                <Link to="/forgot-password" style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent-primary)' }}>
+                  Forgot password?
+                </Link>
+              </p>
             </div>
 
             <button type="submit" disabled={isSubmitting} className="btn-primary" style={{ padding: '13px', fontSize: 15, marginTop: 4 }}>

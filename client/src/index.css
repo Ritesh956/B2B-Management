@@ -34,6 +34,44 @@
   /* Glow shadows */
   --glow-primary: 0 0 40px rgba(99,102,241,0.15);
   --glow-cyan:    0 0 40px rgba(6,182,212,0.12);
+
+  /* Translucent topbar (backdrop-blur'd, so needs its own alpha color) */
+  --topbar-bg: rgba(13,17,23,0.85);
+}
+
+/* Light theme overrides — applied via the `light` class ThemeProvider puts
+   on <html>. Must come after :root so equal-specificity cascade picks these
+   up; :root's own values above serve as the dark theme. */
+.light {
+  /* Background layers */
+  --bg-base:    #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-card:    #ffffff;
+  --bg-hover:   #f1f5f9;
+  --bg-input:   #ffffff;
+
+  /* Borders */
+  --border-dim:    rgba(15,23,42,0.08);
+  --border-subtle: rgba(15,23,42,0.14);
+  --border-focus:  rgba(99,102,241,0.5);
+
+  /* Accents — deepened slightly from the dark-theme hues for AA contrast on white */
+  --accent-primary:   #6366f1;
+  --accent-secondary: #0891b2;
+  --accent-success:   #059669;
+  --accent-warning:   #d97706;
+  --accent-danger:    #dc2626;
+
+  /* Text */
+  --text-primary:   #0f172a;
+  --text-secondary: #475569;
+  --text-muted:     #64748b;
+
+  /* Glow shadows */
+  --glow-primary: 0 0 40px rgba(99,102,241,0.08);
+  --glow-cyan:    0 0 40px rgba(6,182,212,0.06);
+
+  --topbar-bg: rgba(255,255,255,0.85);
 }
 
 /* ─── Base ──────────────────────────────────────────────────────── */

@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../../services/api';
 import { usePOsQuery } from '../../hooks/usePOQuery';
+import { formatCurrency } from '../../utils/currency';
 
 const invoiceSchema = z.object({
   poId: z.string().min(1, 'Please select a Purchase Order'),
@@ -83,7 +84,7 @@ export default function VendorInvoiceNewPage() {
               <option value="">Select an approved PO</option>
               {availablePOs.map((po) => (
                 <option key={po.id} value={po.id}>
-                  {po.poNumber} — Rs. {po.totalAmount.toLocaleString('en-IN')}
+                  {po.poNumber} — {formatCurrency(po.totalAmount)}
                 </option>
               ))}
             </select>
@@ -94,7 +95,7 @@ export default function VendorInvoiceNewPage() {
           {selectedPO && (
             <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
               <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">PO Details Reference</p>
-              <p className="mt-1 text-xs text-slate-600 dark:text-slate-600 dark:text-slate-300">Total Approved Amount: Rs. {selectedPO.totalAmount.toLocaleString('en-IN')}</p>
+              <p className="mt-1 text-xs text-slate-600 dark:text-slate-600 dark:text-slate-300">Total Approved Amount: {formatCurrency(selectedPO.totalAmount)}</p>
             </div>
           )}
 
@@ -117,7 +118,7 @@ export default function VendorInvoiceNewPage() {
           {/* Invoice Amount */}
           <div>
             <label className="mb-2 block text-sm font-medium text-slate-900 dark:text-slate-600 dark:text-slate-300">
-              Invoice Amount (Rs.)
+              Invoice Amount (₹)
             </label>
             <input
               type="number"

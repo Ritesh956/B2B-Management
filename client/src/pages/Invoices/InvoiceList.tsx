@@ -6,6 +6,7 @@ import { useAuthStore } from '../../store/authStore';
 import SubmitInvoiceModal from './SubmitInvoiceModal';
 import EmptyState from '../../components/EmptyState';
 import { downloadBlob } from '../../utils/csv';
+import { formatCurrency } from '../../utils/currency';
 import { useInvoicesQuery } from '../../hooks/useInvoicesQuery';
 import { TableSkeleton } from '../../components/Skeletons';
 import CopyToClipboard from '../../components/CopyToClipboard';
@@ -200,7 +201,7 @@ export default function InvoiceList() {
                     </td>
                     <td>{inv.po.poNumber}</td>
                     <td>{inv.vendor.companyName}</td>
-                    <td>Rs. {inv.amount.toLocaleString('en-IN')}</td>
+                    <td>{formatCurrency(inv.amount)}</td>
                     <td>
                       <span className={`badge badge-${inv.status.toLowerCase()}`}>
                         {inv.status}

@@ -14,6 +14,9 @@ export interface ApprovalStep {
   status: ApprovalStepStatus;
   approvedById: string | null;
   approvedAt: string | null;
+  // Set when an ADMIN acted on this step in place of its assigned role
+  // (e.g. the MANAGER or FINANCE approver is unavailable).
+  overriddenBy?: { userId: string; reason: string } | null;
 }
 
 export interface ApprovalChain {
@@ -65,15 +68,25 @@ interface ApproveStateParams {
   status: string;
   actorRole: Role;
   actorUserId: string;
+  reason?: string;
 }
 
-export function approveState({ approvalChain, currentApproverIndex, status, actorRole, actorUserId }: ApproveStateParams) {
+export function approveState({ approvalChain, currentApproverIndex, status, actorRole, actorUserId, reason }: ApproveStateParams) {
   if (status !== 'PENDING_APPROVAL') {
     throw new Error('Purchase order is not pending approval');
   }
 
-  if (!isCurrentApprover(approvalChain, currentApproverIndex, actorRole)) {
+  const currentRole = getCurrentApproverRole(approvalChain, currentApproverIndex);
+  // ADMIN can step in for the assigned approver (e.g. they're unavailable),
+  // but has to leave a reason since it's bypassing the normal chain.
+  const isOverride = actorRole === Role.ADMIN && currentRole !== Role.ADMIN;
+
+  if (!isOverride && !isCurrentApprover(approvalChain, currentApproverIndex, actorRole)) {
     throw new Error('You are not the current approver');
+  }
+
+  if (isOverride && (!reason || !reason.trim())) {
+    throw new Error('A reason is required to approve on behalf of the assigned approver');
   }
 
   const nextChain: ApprovalChain = {
@@ -87,6 +100,7 @@ export function approveState({ approvalChain, currentApproverIndex, status, acto
         status: APPROVAL_STEP_STATUS.APPROVED,
         approvedById: actorUserId,
         approvedAt: new Date().toISOString(),
+        overriddenBy: isOverride ? { userId: actorUserId, reason: reason!.trim() } : null,
       };
     }),
   };
@@ -98,18 +112,21 @@ export function approveState({ approvalChain, currentApproverIndex, status, acto
     currentApproverIndex: isLastStep ? currentApproverIndex : currentApproverIndex + 1,
     status: isLastStep ? 'APPROVED' : 'PENDING_APPROVAL',
     completed: isLastStep,
+    isOverride,
+    overriddenRole: isOverride ? currentRole : null,
   };
 }
 
 interface RejectStateParams {
   approvalChain: ApprovalChain;
+  currentApproverIndex: number;
   status: string;
   actorRole: Role;
   actorUserId: string;
   reason: string;
 }
 
-export function rejectState({ approvalChain, status, actorRole, actorUserId, reason }: RejectStateParams) {
+export function rejectState({ approvalChain, currentApproverIndex, status, actorRole, actorUserId, reason }: RejectStateParams) {
   if (status !== 'PENDING_APPROVAL') {
     throw new Error('Purchase order is not pending approval');
   }
@@ -118,9 +135,21 @@ export function rejectState({ approvalChain, status, actorRole, actorUserId, rea
     throw new Error('Rejection reason is required');
   }
 
-  const approverIndex = approvalChain.steps.findIndex((step) => step.role === actorRole);
-  if (approverIndex === -1) {
-    throw new Error('You are not in the approval chain');
+  const currentRole = getCurrentApproverRole(approvalChain, currentApproverIndex);
+  let approverIndex: number;
+  let isOverride = false;
+
+  if (actorRole === currentRole) {
+    approverIndex = currentApproverIndex;
+  } else if (actorRole === Role.ADMIN) {
+    // ADMIN can reject on behalf of whichever role is currently pending.
+    approverIndex = currentApproverIndex;
+    isOverride = true;
+  } else {
+    approverIndex = approvalChain.steps.findIndex((step) => step.role === actorRole);
+    if (approverIndex === -1) {
+      throw new Error('You are not in the approval chain');
+    }
   }
 
   const nextChain: ApprovalChain = {
@@ -134,6 +163,7 @@ export function rejectState({ approvalChain, status, actorRole, actorUserId, rea
         status: APPROVAL_STEP_STATUS.REJECTED,
         approvedById: actorUserId,
         approvedAt: new Date().toISOString(),
+        overriddenBy: isOverride ? { userId: actorUserId, reason: reason.trim() } : null,
       };
     }),
     rejectedReason: reason.trim(),
@@ -145,6 +175,8 @@ export function rejectState({ approvalChain, status, actorRole, actorUserId, rea
   return {
     approvalChain: nextChain,
     status: 'REJECTED',
+    isOverride,
+    overriddenRole: isOverride ? currentRole : null,
   };
 }
 

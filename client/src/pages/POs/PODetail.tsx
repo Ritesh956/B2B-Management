@@ -5,6 +5,7 @@ import { type PurchaseOrder } from '../../services/pos';
 import { usePOQuery } from '../../hooks/usePOQuery';
 import ActivityFeed from '../../components/ActivityFeed';
 import { DetailPageSkeleton } from '../../components/Skeletons';
+import { formatCurrency } from '../../utils/currency';
 
 const HorizontalTimeline = ({ po }: { po: PurchaseOrder }) => {
   const latestInvoice = po.invoices?.[0] ?? null;
@@ -208,8 +209,8 @@ export default function PODetail() {
                     <tr key={index}>
                       <td style={{ color: 'var(--text-primary)' }}>{item.description}</td>
                       <td>{item.quantity}</td>
-                      <td>Rs. {item.unitPrice.toLocaleString('en-IN')}</td>
-                      <td>Rs. {item.lineTotal.toLocaleString('en-IN')}</td>
+                      <td>{formatCurrency(item.unitPrice)}</td>
+                      <td>{formatCurrency(item.lineTotal)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -217,7 +218,7 @@ export default function PODetail() {
               <div style={{ marginTop: '16px', textAlign: 'right' }}>
                 <p style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Total</p>
                 <p style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  Rs. {po.totalAmount.toLocaleString('en-IN')}
+                  {formatCurrency(po.totalAmount)}
                 </p>
               </div>
             </div>
@@ -245,6 +246,11 @@ export default function PODetail() {
                       <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                         {step.status}{step.isCurrent ? ' — Current approver' : ''}
                       </p>
+                      {step.overriddenBy && (
+                        <p style={{ fontSize: '11px', color: '#f59e0b', marginTop: '2px' }}>
+                          Admin override — {step.overriddenBy.reason}
+                        </p>
+                      )}
                     </div>
                     {step.approvedAt && (
                       <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>

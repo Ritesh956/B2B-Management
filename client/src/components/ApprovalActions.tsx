@@ -13,16 +13,26 @@ export default function ApprovalActions({ po, onUpdated }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const canAct = useMemo(() => {
+  const isCurrentApprover = useMemo(() => {
     return !!user && po.status === 'PENDING_APPROVAL' && po.currentApproverRole === user.role;
   }, [po, user]);
 
+  // ADMIN can act on any pending PO even when it isn't their turn in the
+  // chain, so a stuck approval doesn't wait indefinitely on an unavailable
+  // MANAGER/FINANCE approver. It's still their turn if the chain's current
+  // step is already ADMIN (the >₹500k tier's last step) — that's not an
+  // override, just the normal flow.
+  const isOverride = !!user && user.role === 'ADMIN' && po.status === 'PENDING_APPROVAL' && po.currentApproverRole !== 'ADMIN';
+  const canAct = isCurrentApprover || isOverride;
+
   const handleApprove = async () => {
     if (!canAct) return;
+    if (isOverride && !reason.trim()) { setError(`Please enter a reason for approving on behalf of ${po.currentApproverRole}`); return; }
     setLoading(true); setError('');
     try {
-      const { po: updated } = await poService.approve(po.id);
+      const { po: updated } = await poService.approve(po.id, isOverride ? reason : undefined);
       onUpdated(updated);
+      setReason('');
     } catch (err: any) {
       setError(err?.response?.data?.error || 'Failed to approve PO');
     } finally { setLoading(false); }
@@ -44,18 +54,22 @@ export default function ApprovalActions({ po, onUpdated }: Props) {
   if (!canAct) return null;
 
   return (
-    <div className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <div className="card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 14, ...(isOverride ? { border: '1px solid rgba(245,158,11,0.3)' } : {}) }}>
       <div>
-        <h3 style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Approval Actions</h3>
-        <p style={{ margin: 0, fontSize: 13.5, color: 'var(--text-secondary)' }}>
-          You are the current approver for this purchase order.
+        <h3 style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+          {isOverride ? 'Admin Override' : 'Approval Actions'}
+        </h3>
+        <p style={{ margin: 0, fontSize: 13.5, color: isOverride ? '#f59e0b' : 'var(--text-secondary)' }}>
+          {isOverride
+            ? `This PO is waiting on ${po.currentApproverRole}. As an admin you can act on their behalf — a reason is required and will be recorded on the audit trail.`
+            : 'You are the current approver for this purchase order.'}
         </p>
       </div>
 
       <textarea
         value={reason}
         onChange={(e) => setReason(e.target.value)}
-        placeholder="Rejection reason (required for reject)"
+        placeholder={isOverride ? 'Reason for overriding the assigned approver (required)' : 'Rejection reason (required for reject)'}
         style={{
           width: '100%', minHeight: 88,
           background: 'var(--bg-input)',

@@ -4,12 +4,14 @@ import express from 'express';
 import posRoutes from '../src/routes/pos';
 import { prisma } from '../src/config/prisma';
 
+let mockUser: any = { id: 'u1', role: 'PROCUREMENT', email: 'proc@test.com' };
+
 vi.mock('../src/middlewares/authenticate', async (importOriginal) => {
   const actual: any = await importOriginal();
   return {
     ...actual,
     authenticate: (req: any, res: any, next: any) => {
-      req.user = { id: 'u1', role: 'PROCUREMENT', email: 'proc@test.com' };
+      req.user = mockUser;
       next();
     },
   };
@@ -24,8 +26,17 @@ vi.mock('../src/config/prisma', () => ({
       update: vi.fn(),
     },
     vendor: { findUnique: vi.fn() },
+    user: { findFirst: vi.fn() },
     auditLog: { create: vi.fn() },
   },
+}));
+
+vi.mock('../src/queues', () => ({
+  enqueueEmail: vi.fn(),
+}));
+
+vi.mock('../src/utils/notify', () => ({
+  notifyUser: vi.fn(),
 }));
 
 const app = express();
@@ -35,6 +46,72 @@ app.use('/api/v1/pos', posRoutes);
 describe('POs API', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUser = { id: 'u1', role: 'PROCUREMENT', email: 'proc@test.com' };
+  });
+
+  describe('POST /api/v1/pos/:id/approve', () => {
+    const chain600k = {
+      steps: [
+        { step: 1, role: 'MANAGER', status: 'PENDING', approvedById: null, approvedAt: null },
+        { step: 2, role: 'FINANCE', status: 'PENDING', approvedById: null, approvedAt: null },
+        { step: 3, role: 'ADMIN', status: 'PENDING', approvedById: null, approvedAt: null },
+      ],
+      rejectedReason: null, rejectedById: null, rejectedByRole: null, rejectedAt: null,
+    };
+    const basePO = {
+      id: 'po1', poNumber: 'PO-2026-0001', status: 'PENDING_APPROVAL', currentApproverIndex: 0,
+      approvalChain: chain600k, createdById: 'creator1',
+      vendor: { id: 'v1', companyName: 'Acme', email: 'vendor@test.com' },
+      createdBy: { id: 'creator1', name: 'Creator', email: 'creator@test.com', role: 'PROCUREMENT' },
+    };
+
+    it('does not crash when the request is sent with no body (regression)', async () => {
+      mockUser = { id: 'mgr1', role: 'MANAGER', email: 'mgr@test.com' };
+      (prisma.purchaseOrder.findUnique as any).mockResolvedValue(basePO);
+      (prisma.purchaseOrder.update as any).mockResolvedValue({
+        ...basePO,
+        currentApproverIndex: 1,
+        approvalChain: { ...chain600k, steps: [{ ...chain600k.steps[0], status: 'APPROVED', approvedById: 'mgr1' }, chain600k.steps[1], chain600k.steps[2]] },
+      });
+
+      // No .send() call at all — reproduces the client's real request when no
+      // reason is supplied, which previously crashed with "Cannot destructure
+      // property 'reason' of 'req.body' as it is undefined."
+      const res = await request(app).post('/api/v1/pos/po1/approve');
+
+      expect(res.status).toBe(200);
+      expect(res.body.po.status).toBe('PENDING_APPROVAL');
+    });
+
+    it('lets ADMIN approve on behalf of the current approver with a reason, and records the override', async () => {
+      mockUser = { id: 'admin1', role: 'ADMIN', email: 'admin@test.com' };
+      (prisma.purchaseOrder.findUnique as any).mockResolvedValue(basePO);
+      (prisma.purchaseOrder.update as any).mockImplementation(({ data }: any) => Promise.resolve({ ...basePO, ...data }));
+
+      const res = await request(app)
+        .post('/api/v1/pos/po1/approve')
+        .send({ reason: 'Manager unavailable, approving on their behalf' });
+
+      expect(res.status).toBe(200);
+      expect(res.body.po.approvalSteps[0]).toMatchObject({
+        status: 'APPROVED',
+        overriddenBy: { userId: 'admin1', reason: 'Manager unavailable, approving on their behalf' },
+      });
+      expect(res.body.po.currentApproverRole).toBe('FINANCE');
+
+      const auditMetadata = (prisma.auditLog.create as any).mock.calls[0][0].data.metadata;
+      expect(auditMetadata.overriddenRole).toBe('MANAGER');
+    });
+
+    it('rejects an ADMIN override with no reason', async () => {
+      mockUser = { id: 'admin1', role: 'ADMIN', email: 'admin@test.com' };
+      (prisma.purchaseOrder.findUnique as any).mockResolvedValue(basePO);
+
+      const res = await request(app).post('/api/v1/pos/po1/approve');
+
+      expect(res.status).toBe(400);
+      expect(prisma.purchaseOrder.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('POST /api/v1/pos', () => {

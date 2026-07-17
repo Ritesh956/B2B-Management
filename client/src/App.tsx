@@ -23,11 +23,14 @@ import VendorDashboardPage from './pages/Vendor/VendorDashboardPage';
 import VendorInvoiceNewPage from './pages/Vendor/VendorInvoiceNewPage';
 import VendorProfilePage from './pages/Vendor/VendorProfilePage';
 import VendorPOList from './pages/Vendor/VendorPOList';
+import VendorInvoiceList from './pages/Vendor/VendorInvoiceList';
 import VendorContractList from './pages/Vendor/VendorContractList';
 import SettingsPage from './pages/SettingsPage';
 import UserManagementPage from './pages/Users/UserManagementPage';
 import AcceptInvitePage from './pages/Users/AcceptInvitePage';
 import VerifyOtpPage from './pages/VerifyOtpPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import NotFoundPage from './pages/NotFoundPage';
 import { Toaster } from 'react-hot-toast';
 import { SkeletonTheme } from './components/Skeletons';
@@ -76,6 +79,8 @@ export default function App() {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/verify-otp" element={<VerifyOtpPage />} />
         <Route path="/accept-invite/:token" element={<AcceptInvitePage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
 
         {/* Protected routes */}
         <Route element={<ProtectedRoute />}>
@@ -102,7 +107,9 @@ export default function App() {
               <Route path="dashboard" element={<VendorDashboardPage />} />
               <Route path="pos" element={<VendorPOList />} />
               <Route path="pos/:id" element={<PODetail />} />
+              <Route path="invoices" element={<VendorInvoiceList />} />
               <Route path="invoices/new" element={<VendorInvoiceNewPage />} />
+              <Route path="invoices/:id" element={<InvoiceDetail />} />
               <Route path="contracts" element={<VendorContractList />} />
               <Route path="profile" element={<VendorProfilePage />} />
             </Route>

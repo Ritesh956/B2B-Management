@@ -5,6 +5,7 @@ import NotificationBell from './NotificationBell';
 import GlobalSearch from './GlobalSearch';
 import HealthIndicator from './HealthIndicator';
 import ErrorBoundary from './ErrorBoundary';
+import ThemeToggle from './ThemeToggle';
 
 const ROLE_BADGE: Record<string, string> = {
   ADMIN:       'badge badge-admin',
@@ -216,7 +217,7 @@ export default function AppLayout() {
         <header style={{
           position: 'sticky', top: 0, zIndex: 20,
           height: 56,
-          background: 'rgba(13,17,23,0.85)',
+          background: 'var(--topbar-bg)',
           backdropFilter: 'blur(12px)',
           borderBottom: '1px solid var(--border-dim)',
           display: 'flex', alignItems: 'center',
@@ -232,6 +233,7 @@ export default function AppLayout() {
           <div style={{ flex: 1 }} className="hidden-mobile">
             <GlobalSearch />
           </div>
+          <ThemeToggle />
           <NotificationBell />
         </header>
 

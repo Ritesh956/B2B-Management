@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { Role } from '@prisma/client';
 import { AuthRequest } from '../middlewares/authenticate.js';
 import { createClient } from 'redis';
@@ -13,6 +14,9 @@ const redisClient = {
   get: async (key: string) => otpStore.get(key) ?? null,
   del: async (key: string) => { otpStore.delete(key); },
 };
+
+const RESET_TOKEN_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const resetTokenStore = new Map<string, { userId: string; expiresAt: number }>();
 
 // ─── POST /api/auth/register ──────────────────────────────────────────────────
 export const register = async (req: Request, res: Response): Promise<void> => {
@@ -34,6 +38,11 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
     if (!Object.values(Role).includes(role)) {
       res.status(400).json({ error: `Invalid role. Must be one of: ${Object.values(Role).join(', ')}` });
+      return;
+    }
+
+    if (role !== Role.VENDOR) {
+      res.status(403).json({ error: 'Self-registration is only available for vendor accounts. Staff accounts must be created by an administrator from User Management.' });
       return;
     }
 
@@ -247,6 +256,7 @@ export const getMe = async (req: AuthRequest, res: Response): Promise<void> => {
         role: true,
 
         notificationPreferences: true,
+        isTwoFactorEnabled: true,
         createdAt: true,
       },
     });
@@ -322,6 +332,7 @@ export const updateMe = async (req: AuthRequest, res: Response): Promise<void> =
           role: true,
 
           notificationPreferences: true,
+          isTwoFactorEnabled: true,
           createdAt: true,
         },
       });
@@ -352,5 +363,83 @@ export const updateMe = async (req: AuthRequest, res: Response): Promise<void> =
   } catch (err) {
     console.error('[updateMe]', err);
     res.status(500).json({ error: 'Failed to update profile' });
+  }
+};
+
+// ─── POST /api/auth/forgot-password ───────────────────────────────────────────
+export const forgotPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { email } = req.body as { email: string };
+    if (!email) {
+      res.status(400).json({ error: 'Email is required' });
+      return;
+    }
+
+    const user = await prisma.user.findUnique({ where: { email } });
+
+    // Only issue a token for real, active accounts, but always send back the
+    // same response either way so this endpoint can't be used to enumerate
+    // which emails have an account.
+    if (user && user.isActive) {
+      const token = crypto.randomBytes(32).toString('hex');
+      resetTokenStore.set(token, { userId: user.id, expiresAt: Date.now() + RESET_TOKEN_TTL_MS });
+
+      const resetLink = `http://localhost:5173/reset-password/${token}`;
+      console.log(`[PASSWORD RESET EMAIL SIMULATION] ${resetLink}`);
+
+      await enqueueEmail({
+        to: user.email,
+        subject: 'Reset your VendorHub password',
+        html: `<p>We received a request to reset your password. This link expires in 30 minutes:</p><p><a href="${resetLink}">${resetLink}</a></p><p>If you didn't request this, you can safely ignore this email.</p>`,
+      });
+    }
+
+    res.status(200).json({ message: 'If an account exists for that email, a reset link has been sent.' });
+  } catch (err) {
+    console.error('[forgotPassword]', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// ─── GET /api/auth/reset-password/:token ──────────────────────────────────────
+export const validateResetToken = async (req: Request, res: Response): Promise<void> => {
+  const { token } = req.params;
+  const entry = resetTokenStore.get(token);
+
+  if (!entry || entry.expiresAt < Date.now()) {
+    resetTokenStore.delete(token);
+    res.status(404).json({ error: 'This reset link is invalid or has expired' });
+    return;
+  }
+
+  res.status(200).json({ valid: true });
+};
+
+// ─── POST /api/auth/reset-password/:token ─────────────────────────────────────
+export const resetPassword = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { token } = req.params;
+    const { password } = req.body as { password: string };
+
+    if (!password || password.length < 8) {
+      res.status(400).json({ error: 'Password must be at least 8 characters' });
+      return;
+    }
+
+    const entry = resetTokenStore.get(token);
+    if (!entry || entry.expiresAt < Date.now()) {
+      resetTokenStore.delete(token);
+      res.status(404).json({ error: 'This reset link is invalid or has expired' });
+      return;
+    }
+
+    const hashed = await bcrypt.hash(password, 10);
+    await prisma.user.update({ where: { id: entry.userId }, data: { password: hashed } });
+    resetTokenStore.delete(token);
+
+    res.status(200).json({ message: 'Password reset successfully' });
+  } catch (err) {
+    console.error('[resetPassword]', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
 };

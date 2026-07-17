@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../../services/api';
 import { Link } from 'react-router-dom';
+import { formatCurrency } from '../../utils/currency';
 
 const STAT_ACCENTS = [
   { color: '#10b981', bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.2)' },
@@ -119,17 +120,17 @@ export default function VendorDashboardPage() {
           </div>
           <div style={{ padding: '8px 0' }}>
             {recentPOs.length > 0 ? recentPOs.map((po: any) => (
-              <div key={po.id} style={{
+              <Link key={po.id} to={`/vendor/pos/${po.id}`} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 padding: '10px 20px', borderBottom: '1px solid var(--border-dim)',
-                transition: 'background 150ms',
+                transition: 'background 150ms', textDecoration: 'none',
               }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
               >
                 <div>
                   <p style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 3px' }}>{po.poNumber}</p>
-                  <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>Rs. {po.totalAmount?.toLocaleString('en-IN')}</p>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>{formatCurrency(po.totalAmount)}</p>
                 </div>
                 <span style={{
                   fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 6,
@@ -138,7 +139,7 @@ export default function VendorDashboardPage() {
                   border: `1px solid ${POStatusColor[po.status] || '#94a3b8'}30`,
                   textTransform: 'uppercase', letterSpacing: '0.04em',
                 }}>{po.status}</span>
-              </div>
+              </Link>
             )) : (
               <p style={{ padding: '20px', fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>No recent purchase orders.</p>
             )}
@@ -149,21 +150,21 @@ export default function VendorDashboardPage() {
         <div className="card" style={{ overflow: 'hidden' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px 12px', borderBottom: '1px solid var(--border-dim)' }}>
             <h2 style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Recent Invoices</h2>
-            <Link to="/vendor/invoices/new" style={{ fontSize: 12, fontWeight: 600, color: '#06b6d4' }}>Submit new →</Link>
+            <Link to="/vendor/invoices" style={{ fontSize: 12, fontWeight: 600, color: '#06b6d4' }}>View all →</Link>
           </div>
           <div style={{ padding: '8px 0' }}>
             {recentInvoices.length > 0 ? recentInvoices.map((inv: any) => (
-              <div key={inv.id} style={{
+              <Link key={inv.id} to={`/vendor/invoices/${inv.id}`} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 padding: '10px 20px', borderBottom: '1px solid var(--border-dim)',
-                transition: 'background 150ms',
+                transition: 'background 150ms', textDecoration: 'none',
               }}
               onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'}
               onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
               >
                 <div>
                   <p style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 3px' }}>{inv.invoiceNumber}</p>
-                  <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>Rs. {inv.amount?.toLocaleString('en-IN')}</p>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>{formatCurrency(inv.amount)}</p>
                 </div>
                 <span style={{
                   fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 6,
@@ -172,7 +173,7 @@ export default function VendorDashboardPage() {
                   border: `1px solid ${InvStatusColor[inv.status] || '#94a3b8'}30`,
                   textTransform: 'uppercase', letterSpacing: '0.04em',
                 }}>{inv.status}</span>
-              </div>
+              </Link>
             )) : (
               <p style={{ padding: '20px', fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>No recent invoices.</p>
             )}

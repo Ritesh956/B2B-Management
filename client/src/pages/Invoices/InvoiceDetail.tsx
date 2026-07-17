@@ -1,18 +1,21 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { invoiceService } from '../../services/invoices';
 import { useAuthStore, Role } from '../../store/authStore';
 import { useInvoiceQuery } from '../../hooks/useInvoicesQuery';
 import ActivityFeed from '../../components/ActivityFeed';
 import { DetailPageSkeleton } from '../../components/Skeletons';
+import { formatCurrency } from '../../utils/currency';
 
 export default function InvoiceDetail() {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
   const user = useAuthStore((s) => s.user);
   const [error, setError] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const { data, isLoading, refetch } = useInvoiceQuery(id ?? '');
   const invoice = data?.invoice ?? null;
+  const invoicesListPath = location.pathname.startsWith('/vendor') ? '/vendor/invoices' : '/invoices';
 
   const onApprove = async () => {
     if (!invoice) return;
@@ -47,7 +50,7 @@ export default function InvoiceDetail() {
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-base)' }}>
         <div className="card" style={{ textAlign: 'center', maxWidth: '400px' }}>
           <p style={{ fontSize: '15px', fontWeight: 600, color: '#ef4444' }}>{error || 'Invoice not found'}</p>
-          <Link to="/invoices" className="btn-ghost" style={{ marginTop: '16px', display: 'inline-block', textDecoration: 'none' }}>
+          <Link to={invoicesListPath} className="btn-ghost" style={{ marginTop: '16px', display: 'inline-block', textDecoration: 'none' }}>
             ← Back to Invoices
           </Link>
         </div>
@@ -65,7 +68,7 @@ export default function InvoiceDetail() {
       <div className="surface" style={{ padding: '24px 32px', borderRadius: '16px' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <Link to="/invoices" className="btn-ghost" style={{ padding: '8px 12px', textDecoration: 'none', fontSize: '16px' }}>←</Link>
+            <Link to={invoicesListPath} className="btn-ghost" style={{ padding: '8px 12px', textDecoration: 'none', fontSize: '16px' }}>←</Link>
             <div>
               <h1 className="page-title" style={{ margin: 0 }}>{invoice.invoiceNumber}</h1>
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '2px' }}>
@@ -89,8 +92,8 @@ export default function InvoiceDetail() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               {[
                 { label: 'PO Number', value: invoice.po.poNumber },
-                { label: 'PO Total', value: `Rs. ${invoice.po.totalAmount.toLocaleString('en-IN')}` },
-                { label: 'Invoice Amount', value: `Rs. ${invoice.amount.toLocaleString('en-IN')}` },
+                { label: 'PO Total', value: formatCurrency(invoice.po.totalAmount) },
+                { label: 'Invoice Amount', value: formatCurrency(invoice.amount) },
               ].map(({ label, value }) => (
                 <div key={label}>
                   <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{label}</p>
@@ -103,7 +106,7 @@ export default function InvoiceDetail() {
                   fontSize: '13px', fontWeight: 600, marginTop: '2px',
                   color: invoice.amountDiff === 0 ? '#10b981' : '#f59e0b'
                 }}>
-                  Rs. {invoice.amountDiff.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {formatCurrency(invoice.amountDiff, { decimals: true })}
                 </p>
               </div>
             </div>
@@ -112,8 +115,8 @@ export default function InvoiceDetail() {
               <div style={{ marginTop: '16px', padding: '12px', borderRadius: '8px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}>
                 <p style={{ fontSize: '13px', color: '#f59e0b', fontWeight: 500 }}>Mismatch warning</p>
                 <p style={{ fontSize: '12px', color: '#fcd34d', marginTop: '4px' }}>
-                  Invoice amount differs from PO total by Rs.{' '}
-                  {Math.abs(invoice.amountDiff).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  Invoice amount differs from PO total by{' '}
+                  {formatCurrency(Math.abs(invoice.amountDiff), { decimals: true })}
                 </p>
               </div>
             )}

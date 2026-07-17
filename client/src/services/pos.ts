@@ -17,6 +17,7 @@ export interface POApprovalStep {
   approvedById: string | null;
   approvedAt: string | null;
   isCurrent: boolean;
+  overriddenBy?: { userId: string; reason: string } | null;
 }
 
 export interface PurchaseOrder {
@@ -79,6 +80,7 @@ const poSchema: z.ZodType<PurchaseOrder> = z.object({
       approvedById: z.string().nullable(),
       approvedAt: z.string().nullable(),
       isCurrent: z.boolean(),
+      overriddenBy: z.object({ userId: z.string(), reason: z.string() }).nullable().optional(),
     })
   ),
   currentApproverRole: z.string().nullable(),
@@ -115,8 +117,8 @@ export const poService = {
   create: (payload: { vendorId: string; items: Array<{ description: string; quantity: number; unitPrice: number }> }) =>
     api.post('/pos', payload).then((r) => parseApiResponse(singlePoResponseSchema, r.data)),
 
-  approve: (id: string) =>
-    api.post(`/pos/${id}/approve`).then((r) => parseApiResponse(singlePoResponseSchema, r.data)),
+  approve: (id: string, reason?: string) =>
+    api.post(`/pos/${id}/approve`, reason ? { reason } : {}).then((r) => parseApiResponse(singlePoResponseSchema, r.data)),
 
   reject: (id: string, reason: string) =>
     api.post(`/pos/${id}/reject`, { reason }).then((r) => parseApiResponse(singlePoResponseSchema, r.data)),

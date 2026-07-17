@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { poService } from '../../services/pos';
 import type { Vendor } from '../../services/vendors';
+import { formatCurrency } from '../../utils/currency';
 
 interface Props {
   vendors: Vendor[];
@@ -176,7 +177,7 @@ export default function CreatePOModal({ vendors, onClose, onCreated }: Props) {
           <div className="card-sm" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Total Amount</p>
             <p style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-primary)' }}>
-              ₹ {total.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+              {formatCurrency(total, { decimals: true })}
             </p>
           </div>
 

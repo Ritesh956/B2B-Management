@@ -11,21 +11,12 @@ const schema = z.object({
   email: z.string().email('Enter a valid email'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   confirmPassword: z.string(),
-  role: z.enum(['ADMIN', 'FINANCE', 'PROCUREMENT', 'MANAGER', 'VENDOR'] as const),
 }).refine((d) => d.password === d.confirmPassword, {
   message: "Passwords don't match",
   path: ['confirmPassword'],
 });
 
 type FormData = z.infer<typeof schema>;
-
-const ROLE_LABELS: Record<string, string> = {
-  ADMIN: 'Admin',
-  FINANCE: 'Finance',
-  PROCUREMENT: 'Procurement',
-  MANAGER: 'Manager',
-  VENDOR: 'Vendor (External)',
-};
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -35,7 +26,7 @@ export default function RegisterPage() {
     handleSubmit,
     formState: { errors, isSubmitting },
     setError,
-  } = useForm<FormData>({ resolver: zodResolver(schema), defaultValues: { role: 'PROCUREMENT' } });
+  } = useForm<FormData>({ resolver: zodResolver(schema) });
 
 
   const onSubmit = async (data: FormData) => {
@@ -44,7 +35,7 @@ export default function RegisterPage() {
         name: data.name,
         email: data.email,
         password: data.password,
-        role: data.role,
+        role: 'VENDOR',
         companyName: data.companyName,
         companyAddress: data.companyAddress,
       });
@@ -143,17 +134,17 @@ export default function RegisterPage() {
           </span>
 
           <h1 style={{ marginTop: 28, fontSize: 28, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.2, letterSpacing: '-0.02em' }}>
-            Register a new account
+            Register as a vendor
           </h1>
           <p style={{ marginTop: 12, fontSize: 13.5, lineHeight: 1.7, color: 'var(--text-secondary)' }}>
-            Use this form for custom demo users. If you just want to test the product, the seeded login on the sign-in screen is faster.
+            This form creates an external vendor account. Staff accounts (Admin, Finance, Procurement, Manager) can only be created by an administrator from User Management.
           </p>
 
           <div style={{ marginTop: 28, display: 'flex', flexDirection: 'column', gap: 10 }}>
             {[
               'Every new account gets a real API token and profile.',
               'Company details are saved with the user on signup.',
-              'Vendor users can onboard without a company record.',
+              'Staff access requires an admin-issued invite.',
             ].map((item) => (
               <div
                 key={item}
@@ -236,23 +227,6 @@ export default function RegisterPage() {
             <Field label="Email Address" name="email" type="email" placeholder="john@acme.com" />
             <Field label="Password" name="password" type="password" placeholder="Min 8 characters" />
             <Field label="Confirm Password" name="confirmPassword" type="password" placeholder="Re-enter password" />
-
-            {/* Role select */}
-            <div>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Your Role
-              </label>
-              <select
-                {...register('role')}
-                className="input-base"
-                style={{ width: '100%' }}
-              >
-                {Object.entries(ROLE_LABELS).map(([v, l]) => (
-                  <option key={v} value={v}>{l}</option>
-                ))}
-              </select>
-              {errors.role && <p style={{ color: '#ef4444', fontSize: 11, marginTop: 4 }}>{errors.role.message}</p>}
-            </div>
 
             <button
               type="submit"

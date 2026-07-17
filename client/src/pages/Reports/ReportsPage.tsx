@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Download } from 'lucide-react';
 import api from '../../services/api';
+import { formatCurrency } from '../../utils/currency';
 import {
   BarChart,
   Bar,
@@ -133,7 +134,7 @@ export default function ReportsPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px' }}>
             <div className="stat-card" style={{ borderColor: 'rgba(6,182,212,0.25)', background: 'rgba(6,182,212,0.08)' }}>
               <p className="stat-label" style={{ color: '#06b6d4' }}>Total Spend</p>
-              <p className="stat-value">Rs. {summary?.totalSpend?.toLocaleString('en-IN') ?? 0}</p>
+              <p className="stat-value">{formatCurrency(summary?.totalSpend)}</p>
             </div>
             <div className="stat-card">
               <p className="stat-label">Total POs</p>
@@ -172,7 +173,7 @@ export default function ReportsPage() {
                   cursor={{ fill: 'rgba(255,255,255,0.05)' }}
                   contentStyle={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: '10px' }}
                   itemStyle={{ color: 'var(--text-primary)', fontWeight: 600 }}
-                  formatter={(value: any) => `Rs. ${Number(value).toLocaleString('en-IN')}`}
+                  formatter={(value: any) => formatCurrency(Number(value))}
                 />
                 <Bar dataKey="totalSpend" fill="#06b6d4" radius={[0, 4, 4, 0]} />
               </BarChart>
@@ -201,7 +202,7 @@ export default function ReportsPage() {
                   itemStyle={{ color: 'var(--text-primary)', fontWeight: 600 }}
                 />
                 <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                <Bar yAxisId="left" dataKey="amount" fill="#f59e0b" name="Total Amount (Rs.)" radius={[4, 4, 0, 0]} />
+                <Bar yAxisId="left" dataKey="amount" fill="#f59e0b" name="Total Amount (₹)" radius={[4, 4, 0, 0]} />
                 <Bar yAxisId="right" dataKey="count" fill="#8b5cf6" name="Invoice Count" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>

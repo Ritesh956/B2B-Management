@@ -35,7 +35,10 @@ export const globalSearch = async (req: AuthRequest, res: Response): Promise<voi
     });
 
     const poWhere: any = {
-      poNumber: { contains: query, mode: 'insensitive' },
+      OR: [
+        { poNumber: { contains: query, mode: 'insensitive' } },
+        { vendor: { companyName: { contains: query, mode: 'insensitive' } } },
+      ],
     };
 
     if (req.user.role === Role.PROCUREMENT) {
@@ -54,7 +57,10 @@ export const globalSearch = async (req: AuthRequest, res: Response): Promise<voi
     });
 
     const invoicesWhere: any = {
-      invoiceNumber: { contains: query, mode: 'insensitive' },
+      OR: [
+        { invoiceNumber: { contains: query, mode: 'insensitive' } },
+        { vendor: { companyName: { contains: query, mode: 'insensitive' } } },
+      ],
     };
 
     if (req.user.role === Role.VENDOR) {
@@ -73,7 +79,10 @@ export const globalSearch = async (req: AuthRequest, res: Response): Promise<voi
       : Promise.resolve([]);
 
     const contractsWhere: any = {
-      title: { contains: query, mode: 'insensitive' },
+      OR: [
+        { title: { contains: query, mode: 'insensitive' } },
+        { vendor: { companyName: { contains: query, mode: 'insensitive' } } },
+      ],
     };
 
     const showContracts = req.user.role !== Role.VENDOR;

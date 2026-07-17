@@ -8,11 +8,9 @@ import {
 import { useAuthStore } from '../store/authStore';
 import { dashboardService, type DashboardResponse } from '../services/dashboard';
 import { ShoppingCart, UserPlus, FileText } from 'lucide-react';
+import { formatCurrency as formatRupees } from '../utils/currency';
 
 const PIE_COLORS = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ef4444'];
-
-const formatRupees = (value: number) =>
-  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value);
 
 const actionColor = (action: string) => {
   const a = action.toUpperCase();

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { poService } from '../../services/pos';
 import { invoiceService } from '../../services/invoices';
+import { formatCurrency } from '../../utils/currency';
 
 type VendorPO = {
   id: string;
@@ -108,7 +109,7 @@ export default function SubmitInvoiceModal({ onClose, onSubmitted }: Props) {
             </select>
             {selectedPO && (
               <p style={{ marginTop: '6px', fontSize: '11px', color: 'var(--text-muted)' }}>
-                PO Total: ₹ {selectedPO.totalAmount.toLocaleString('en-IN')}
+                PO Total: {formatCurrency(selectedPO.totalAmount)}
               </p>
             )}
           </div>

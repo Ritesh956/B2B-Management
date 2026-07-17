@@ -7,6 +7,7 @@ import RoleGate from '../../components/RoleGate';
 import CreatePOModal from './CreatePOModal';
 import EmptyState from '../../components/EmptyState';
 import { downloadBlob } from '../../utils/csv';
+import { formatCurrency } from '../../utils/currency';
 import { usePOsQuery } from '../../hooks/usePOQuery';
 import { useVendorsQuery } from '../../hooks/useVendorsQuery';
 import { TableSkeleton } from '../../components/Skeletons';
@@ -147,7 +148,7 @@ export default function POList() {
                       </div>
                     </td>
                     <td>{po.vendor.companyName}</td>
-                    <td>Rs. {po.totalAmount.toLocaleString('en-IN')}</td>
+                    <td>{formatCurrency(po.totalAmount)}</td>
                     <td>
                       <span className={`badge badge-${po.status.toLowerCase()}`}>
                         {po.status}

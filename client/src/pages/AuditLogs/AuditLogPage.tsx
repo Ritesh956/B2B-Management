@@ -3,8 +3,21 @@ import { Link } from 'react-router-dom';
 import RoleGate from '../../components/RoleGate';
 import { Role } from '../../store/authStore';
 import { auditLogService, type AuditLogItem } from '../../services/auditLogs';
+import { listUsers, type User } from '../../services/users';
 import EmptyState from '../../components/EmptyState';
 import { TableSkeleton } from '../../components/Skeletons';
+
+// The real entity strings written to AuditLog.entity across the app (see
+// `entity: '...'` in server/src/controllers) — there's no DB enum for this,
+// so the list is kept here in sync by hand.
+const ENTITY_TYPES: Array<{ value: string; label: string }> = [
+  { value: 'PurchaseOrder', label: 'Purchase Order' },
+  { value: 'Invoice', label: 'Invoice' },
+  { value: 'Vendor', label: 'Vendor' },
+  { value: 'VendorProfile', label: 'Vendor Profile' },
+  { value: 'Contract', label: 'Contract' },
+  { value: 'User', label: 'User Account' },
+];
 
 const actionColor = (action: string): React.CSSProperties => {
   const normalized = action.toUpperCase();
@@ -40,6 +53,7 @@ export default function AuditLogPage() {
   const [userId, setUserId] = useState('');
   const [search, setSearch] = useState('');
   const [from, setFrom] = useState('');
+  const [users, setUsers] = useState<User[]>([]);
 
   const filters = useMemo(
     () => ({ entity: entity || undefined, userId: userId || undefined, search: search || undefined, from: from || undefined }),
@@ -67,6 +81,12 @@ export default function AuditLogPage() {
   useEffect(() => {
     loadLogs(1);
   }, [filters]);
+
+  useEffect(() => {
+    listUsers()
+      .then((data) => setUsers(data.users))
+      .catch((err) => console.error('Failed to load users for audit log filter', err));
+  }, []);
 
   return (
     <RoleGate roles={[Role.ADMIN]}>
@@ -106,21 +126,29 @@ export default function AuditLogPage() {
               />
             </div>
             <div style={{ width: '1px', background: 'var(--border-dim)', margin: '4px 0' }} />
-            <input
+            <select
               value={entity}
               onChange={(e) => setEntity(e.target.value)}
-              placeholder="Entity type..."
               className="input-base"
-              style={{ border: 'none', background: 'transparent', boxShadow: 'none', width: '140px' }}
-            />
+              style={{ border: 'none', background: 'transparent', boxShadow: 'none', width: '160px' }}
+            >
+              <option value="">All Entities</option>
+              {ENTITY_TYPES.map(({ value, label }) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
             <div style={{ width: '1px', background: 'var(--border-dim)', margin: '4px 0' }} />
-            <input
+            <select
               value={userId}
               onChange={(e) => setUserId(e.target.value)}
-              placeholder="User ID..."
               className="input-base"
-              style={{ border: 'none', background: 'transparent', boxShadow: 'none', width: '140px' }}
-            />
+              style={{ border: 'none', background: 'transparent', boxShadow: 'none', width: '190px' }}
+            >
+              <option value="">All Users</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+              ))}
+            </select>
             <div style={{ width: '1px', background: 'var(--border-dim)', margin: '4px 0' }} />
             <input
               value={from}

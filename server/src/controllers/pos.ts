@@ -331,6 +331,7 @@ export const approvePO = async (req: AuthRequest, res: Response): Promise<void> 
     }
 
     const id = req.params.id as string;
+    const { reason } = (req.body || {}) as { reason?: string };
 
     const existing = await prisma.purchaseOrder.findUnique({
       where: { id },
@@ -352,6 +353,7 @@ export const approvePO = async (req: AuthRequest, res: Response): Promise<void> 
       status: existing.status,
       actorRole: req.user.role,
       actorUserId: req.user.id,
+      reason,
     });
 
     const po = await prisma.purchaseOrder.update({
@@ -373,7 +375,11 @@ export const approvePO = async (req: AuthRequest, res: Response): Promise<void> 
         action: 'APPROVE',
         entity: 'PurchaseOrder',
         entityId: po.id,
-        metadata: { poNumber: po.poNumber, nextStatus: po.status },
+        metadata: {
+          poNumber: po.poNumber,
+          nextStatus: po.status,
+          ...(next.isOverride ? { overriddenRole: next.overriddenRole, overrideReason: reason?.trim() } : {}),
+        },
       },
     });
 
@@ -444,6 +450,7 @@ export const rejectPO = async (req: AuthRequest, res: Response): Promise<void> =
     const chain = normalizeApprovalChain(existing.approvalChain);
     const next = rejectState({
       approvalChain: chain,
+      currentApproverIndex: existing.currentApproverIndex,
       status: existing.status,
       actorRole: req.user.role,
       actorUserId: req.user.id,
@@ -468,7 +475,11 @@ export const rejectPO = async (req: AuthRequest, res: Response): Promise<void> =
         action: 'REJECT',
         entity: 'PurchaseOrder',
         entityId: po.id,
-        metadata: { poNumber: po.poNumber, reason: reason?.trim() || null },
+        metadata: {
+          poNumber: po.poNumber,
+          reason: reason?.trim() || null,
+          ...(next.isOverride ? { overriddenRole: next.overriddenRole } : {}),
+        },
       },
     });
 

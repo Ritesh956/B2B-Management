@@ -3,6 +3,7 @@ import { usePOsQuery } from '../../hooks/usePOQuery';
 import { Link } from 'react-router-dom';
 import EmptyState from '../../components/EmptyState';
 import { TableSkeleton } from '../../components/Skeletons';
+import { formatCurrency } from '../../utils/currency';
 
 const PO_STATUS_COLOR: Record<string, string> = {
   APPROVED: '#10b981', PENDING_APPROVAL: '#f59e0b', DRAFT: '#94a3b8', REJECTED: '#ef4444', CLOSED: '#64748b',
@@ -59,7 +60,7 @@ export default function VendorPOList() {
                 return (
                   <tr key={po.id}>
                     <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{po.poNumber}</td>
-                    <td>Rs. {po.totalAmount.toLocaleString('en-IN')}</td>
+                    <td>{formatCurrency(po.totalAmount)}</td>
                     <td>
                       <span style={{
                         fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 6,
