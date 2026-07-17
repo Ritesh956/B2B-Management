@@ -14,11 +14,19 @@ const exportLimiter = rateLimit({
   message: { error: 'Too many requests, please try again later' },
 });
 
+// The vendor directory (listing/reading/exporting other vendors) is a staff
+// tool — vendors manage their own record through /api/v1/vendor/profile, not
+// here. Gate the whole resource to staff roles by default so new routes
+// don't accidentally launch unscoped; ADMIN-only actions tighten further.
+const STAFF_ROLES = [Role.ADMIN, Role.PROCUREMENT, Role.MANAGER, Role.FINANCE];
+
 router.use(authenticate);
+router.use(authorize(STAFF_ROLES));
+
 router.post('/', authorize([Role.PROCUREMENT, Role.ADMIN]), upload.array('documents', 5), createVendor);
 router.get('/', listVendors);
 router.get('/export', exportLimiter, exportVendors);
-router.get('/performance', authorize([Role.ADMIN, Role.PROCUREMENT, Role.MANAGER, Role.FINANCE]), getVendorPerformance);
+router.get('/performance', getVendorPerformance);
 router.patch('/:id/performance', authorize([Role.ADMIN]), updateVendorPerformanceScore);
 router.patch('/:id/performance-score', authorize([Role.ADMIN]), updateVendorPerformanceScore);
 router.patch('/bulk', authorize([Role.ADMIN]), bulkUpdateVendors);

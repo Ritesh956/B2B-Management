@@ -28,6 +28,7 @@ vi.mock('../src/config/prisma', () => ({
     vendor: { findUnique: vi.fn() },
     user: { findFirst: vi.fn() },
     auditLog: { create: vi.fn() },
+    $queryRaw: vi.fn().mockResolvedValue([]),
   },
 }));
 

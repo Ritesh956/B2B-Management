@@ -21,18 +21,23 @@ export const globalSearch = async (req: AuthRequest, res: Response): Promise<voi
       return;
     }
 
-    const vendorsPromise = prisma.vendor.findMany({
-      where: {
-        OR: [
-          { companyName: { contains: query, mode: 'insensitive' } },
-          { contactName: { contains: query, mode: 'insensitive' } },
-          { email: { contains: query, mode: 'insensitive' } },
-        ],
-      },
-      orderBy: { companyName: 'asc' },
-      take: 3,
-      select: { id: true, companyName: true, status: true },
-    });
+    // Vendors don't get a directory of other vendors — same reasoning as
+    // GET /api/v1/vendors being staff-only.
+    const showVendors = req.user.role !== Role.VENDOR;
+    const vendorsPromise = showVendors
+      ? prisma.vendor.findMany({
+          where: {
+            OR: [
+              { companyName: { contains: query, mode: 'insensitive' } },
+              { contactName: { contains: query, mode: 'insensitive' } },
+              { email: { contains: query, mode: 'insensitive' } },
+            ],
+          },
+          orderBy: { companyName: 'asc' },
+          take: 3,
+          select: { id: true, companyName: true, status: true },
+        })
+      : Promise.resolve([]);
 
     const poWhere: any = {
       OR: [
