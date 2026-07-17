@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import { ProtectedRoute } from '../components/ProtectedRoute';
+import ProtectedRoute from '../components/ProtectedRoute';
 import { useAuthStore } from '../store/authStore';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 

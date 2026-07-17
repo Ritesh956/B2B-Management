@@ -17,17 +17,6 @@ import toast from 'react-hot-toast';
 
 type FilterValues = { statuses: string[]; vendorId: string; minAmount: string; maxAmount: string; fromDate: string; toDate: string; createdById: string; };
 
-function filtersToParams(f: FilterValues) {
-  const p: Record<string, string> = {};
-  if (f.statuses.length > 0) p.status = f.statuses.join(',');
-  if (f.vendorId) p.vendorId = f.vendorId;
-  if (f.minAmount) p.minAmount = f.minAmount;
-  if (f.maxAmount) p.maxAmount = f.maxAmount;
-  if (f.fromDate) p.fromDate = f.fromDate;
-  if (f.toDate) p.toDate = f.toDate;
-  return p;
-}
-
 function paramsToFilters(params: URLSearchParams): FilterValues {
   return {
     statuses: params.get('status') ? params.get('status')!.split(',') : [],
