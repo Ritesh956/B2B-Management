@@ -49,6 +49,10 @@ export interface PurchaseOrder {
 export interface POListResponse {
   pos: PurchaseOrder[];
   total: number;
+  page: number;
+  limit: number;
+  pendingCount: number;
+  approvedCount: number;
 }
 
 const poStatusSchema = z.enum(['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'CLOSED']);
@@ -103,12 +107,16 @@ const poSchema: z.ZodType<PurchaseOrder> = z.object({
 const poListResponseSchema: z.ZodType<POListResponse> = z.object({
   pos: z.array(poSchema),
   total: z.number(),
+  page: z.number(),
+  limit: z.number(),
+  pendingCount: z.number(),
+  approvedCount: z.number(),
 });
 
 const singlePoResponseSchema = z.object({ po: poSchema });
 
 export const poService = {
-  list: (params?: { status?: POStatus | '' | string; vendorId?: string; minAmount?: string; maxAmount?: string; fromDate?: string; toDate?: string; createdById?: string }) =>
+  list: (params?: { status?: POStatus | '' | string; vendorId?: string; minAmount?: string; maxAmount?: string; fromDate?: string; toDate?: string; createdById?: string; page?: number; limit?: number }) =>
     api.get('/pos', { params }).then((r) => parseApiResponse(poListResponseSchema, r.data)),
 
   get: (id: string) =>

@@ -9,6 +9,8 @@ type POListParams = {
   fromDate?: string;
   toDate?: string;
   createdById?: string;
+  page?: number;
+  limit?: number;
 };
 
 export const poQueryKeys = {

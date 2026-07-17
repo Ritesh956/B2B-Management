@@ -11,7 +11,7 @@ const PO_STATUS_COLOR: Record<string, string> = {
 
 export default function VendorPOList() {
   const [search, setSearch] = useState('');
-  const { data, isLoading } = usePOsQuery();
+  const { data, isLoading } = usePOsQuery({ limit: 100 });
   const pos = data?.pos || [];
   const filteredPOs = pos.filter((po) => po.poNumber.toLowerCase().includes(search.toLowerCase()));
 

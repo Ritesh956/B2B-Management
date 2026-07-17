@@ -154,48 +154,65 @@ export const listPOs = async (req: AuthRequest, res: Response): Promise<void> =>
       return;
     }
 
-    const { status, vendorId, minAmount, maxAmount, fromDate, toDate, createdById } = req.query as Record<string, string>;
-    const where: import('@prisma/client').Prisma.PurchaseOrderWhereInput = {};
+    const { status, vendorId, minAmount, maxAmount, fromDate, toDate, createdById, page = '1', limit = '20' } = req.query as Record<string, string>;
 
+    // baseWhere excludes the status filter so the pending/approved status
+    // counts below always reflect the true totals for the current
+    // role-scope + other filters, regardless of which status the list view
+    // is currently filtered to.
+    const baseWhere: import('@prisma/client').Prisma.PurchaseOrderWhereInput = {};
+    if (vendorId) baseWhere.vendorId = vendorId;
+    if (minAmount || maxAmount) {
+      baseWhere.totalAmount = {};
+      if (minAmount) baseWhere.totalAmount.gte = parseFloat(minAmount);
+      if (maxAmount) baseWhere.totalAmount.lte = parseFloat(maxAmount);
+    }
+    if (fromDate || toDate) {
+      baseWhere.createdAt = {};
+      if (fromDate) baseWhere.createdAt.gte = new Date(fromDate);
+      if (toDate) baseWhere.createdAt.lte = new Date(toDate);
+    }
+    if (createdById) baseWhere.createdById = createdById;
+
+    if (req.user.role === Role.PROCUREMENT) {
+      baseWhere.createdById = req.user.id;
+    }
+
+    if (req.user.role === Role.VENDOR) {
+      const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });
+      baseWhere.vendor = { email: user?.email ?? '__none__' };
+    }
+
+    const where: import('@prisma/client').Prisma.PurchaseOrderWhereInput = { ...baseWhere };
     // Support comma-separated multiple statuses
     if (status) {
       const statuses = status.split(',').filter(s => Object.values(POStatus).includes(s as POStatus)) as POStatus[];
       if (statuses.length === 1) where.status = statuses[0];
       else if (statuses.length > 1) where.status = { in: statuses };
     }
-    if (vendorId) where.vendorId = vendorId;
-    if (minAmount || maxAmount) {
-      where.totalAmount = {};
-      if (minAmount) where.totalAmount.gte = parseFloat(minAmount);
-      if (maxAmount) where.totalAmount.lte = parseFloat(maxAmount);
-    }
-    if (fromDate || toDate) {
-      where.createdAt = {};
-      if (fromDate) where.createdAt.gte = new Date(fromDate);
-      if (toDate) where.createdAt.lte = new Date(toDate);
-    }
-    if (createdById) where.createdById = createdById;
 
-    if (req.user.role === Role.PROCUREMENT) {
-      where.createdById = req.user.id;
-    }
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const skip = (pageNum - 1) * limitNum;
 
-    if (req.user.role === Role.VENDOR) {
-      const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { email: true } });
-      where.vendor = { email: user?.email ?? '__none__' };
-    }
-
-    const pos = await prisma.purchaseOrder.findMany({
-      where,
-      include: {
-        vendor: { select: { id: true, companyName: true, email: true } },
-        createdBy: { select: { id: true, name: true, email: true, role: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    const [pos, total, pendingCount, approvedCount] = await Promise.all([
+      prisma.purchaseOrder.findMany({
+        where,
+        include: {
+          vendor: { select: { id: true, companyName: true, email: true } },
+          createdBy: { select: { id: true, name: true, email: true, role: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limitNum,
+      }),
+      prisma.purchaseOrder.count({ where }),
+      prisma.purchaseOrder.count({ where: { ...baseWhere, status: POStatus.PENDING_APPROVAL } }),
+      prisma.purchaseOrder.count({ where: { ...baseWhere, status: POStatus.APPROVED } }),
+    ]);
 
     const mapped = pos.map(mapPO);
-    res.status(200).json({ pos: mapped, total: mapped.length });
+    res.status(200).json({ pos: mapped, total, page: pageNum, limit: limitNum, pendingCount, approvedCount });
   } catch (err) {
     console.error('[listPOs]', err);
     res.status(500).json({ error: 'Failed to fetch purchase orders' });

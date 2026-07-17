@@ -23,7 +23,7 @@ export default function SubmitInvoiceModal({ onClose, onSubmitted }: Props) {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    poService.list().then((d) => {
+    poService.list({ limit: 100 }).then((d) => {
       const mapped = d.pos.map((po) => ({
         id: po.id,
         poNumber: po.poNumber,

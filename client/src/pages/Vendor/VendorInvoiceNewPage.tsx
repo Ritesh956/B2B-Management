@@ -22,7 +22,7 @@ type InvoiceFormValues = z.infer<typeof invoiceSchema>;
 export default function VendorInvoiceNewPage() {
   const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { data: posData, isLoading: isLoadingPOs } = usePOsQuery({ status: 'APPROVED' });
+  const { data: posData, isLoading: isLoadingPOs } = usePOsQuery({ status: 'APPROVED', limit: 100 });
 
   // Only show APPROVED POs
   const availablePOs = posData?.pos || [];

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { type POStatus } from '../../services/pos';
 import { Role } from '../../store/authStore';
@@ -45,19 +45,25 @@ export default function POList() {
   const userRole = useAuthStore((s) => s.user?.role);
   const [searchParams] = useSearchParams();
   const [showCreate, setShowCreate] = useState(false);
+  const [page, setPage] = useState(1);
+  const limit = 20;
 
   const filters = paramsToFilters(searchParams);
 
   const apiParams: Record<string, string> = filtersToParams(filters);
 
   const { data: poData, isLoading, refetch: refetchPOs } = usePOsQuery(
-    { status: apiParams.status as POStatus | undefined, ...apiParams } as any
+    { status: apiParams.status as POStatus | undefined, ...apiParams, page, limit } as any
   );
   const { data: vendorData } = useVendorsQuery({ limit: 100 });
   const pos = poData?.pos ?? [];
   const vendors = vendorData?.vendors ?? [];
-  const approvedCount = pos.filter((po) => po.status === 'APPROVED').length;
-  const pendingCount = pos.filter((po) => po.status === 'PENDING_APPROVAL').length;
+  const total = poData?.total ?? 0;
+  const approvedCount = poData?.approvedCount ?? 0;
+  const pendingCount = poData?.pendingCount ?? 0;
+  const totalPages = Math.ceil(total / limit);
+
+  useEffect(() => { setPage(1); }, [JSON.stringify(apiParams)]);
 
   const exportCsv = async () => {
     try {
@@ -89,7 +95,7 @@ export default function POList() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', minWidth: '300px' }}>
               <div className="stat-card">
                 <p className="stat-label">Total</p>
-                <p className="stat-value">{pos.length}</p>
+                <p className="stat-value">{total}</p>
               </div>
               <div className="stat-card" style={{ borderColor: 'rgba(245,158,11,0.25)', background: 'rgba(245,158,11,0.08)' }}>
                 <p className="stat-label" style={{ color: '#f59e0b' }}>Pending</p>
@@ -165,6 +171,33 @@ export default function POList() {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+              Page {page} of {totalPages} · {total} purchase orders
+            </p>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="btn-ghost"
+                style={{ fontSize: 13, opacity: page === 1 ? 0.4 : 1 }}
+              >
+                ← Prev
+              </button>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="btn-ghost"
+                style={{ fontSize: 13, opacity: page === totalPages ? 0.4 : 1 }}
+              >
+                Next →
+              </button>
+            </div>
           </div>
         )}
       </div>
