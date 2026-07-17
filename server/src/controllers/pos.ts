@@ -359,9 +359,9 @@ export const approvePO = async (req: AuthRequest, res: Response): Promise<void> 
     const po = await prisma.purchaseOrder.update({
       where: { id },
       data: {
-        approvalChain: next.approvalChain,
+        approvalChain: next.approvalChain as any,
         currentApproverIndex: next.currentApproverIndex,
-        status: next.status,
+        status: next.status as POStatus,
       },
       include: {
         vendor: true,
@@ -460,8 +460,8 @@ export const rejectPO = async (req: AuthRequest, res: Response): Promise<void> =
     const po = await prisma.purchaseOrder.update({
       where: { id },
       data: {
-        approvalChain: next.approvalChain,
-        status: next.status,
+        approvalChain: next.approvalChain as any,
+        status: next.status as POStatus,
       },
       include: {
         vendor: true,

@@ -134,7 +134,7 @@ export const updateUserRole = async (req: AuthRequest, res: Response): Promise<v
       res.status(403).json({ error: 'Only admins can update roles' });
       return;
     }
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
     const { role } = req.body;
 
     const user = await prisma.user.update({
@@ -154,7 +154,7 @@ export const deactivateUser = async (req: AuthRequest, res: Response): Promise<v
       res.status(403).json({ error: 'Only admins can deactivate users' });
       return;
     }
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
 
     const user = await prisma.user.update({
       where: { id },

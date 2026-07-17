@@ -403,7 +403,7 @@ export const forgotPassword = async (req: Request, res: Response): Promise<void>
 
 // ─── GET /api/auth/reset-password/:token ──────────────────────────────────────
 export const validateResetToken = async (req: Request, res: Response): Promise<void> => {
-  const { token } = req.params;
+  const { token } = req.params as { token: string };
   const entry = resetTokenStore.get(token);
 
   if (!entry || entry.expiresAt < Date.now()) {
@@ -418,7 +418,7 @@ export const validateResetToken = async (req: Request, res: Response): Promise<v
 // ─── POST /api/auth/reset-password/:token ─────────────────────────────────────
 export const resetPassword = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { token } = req.params;
+    const { token } = req.params as { token: string };
     const { password } = req.body as { password: string };
 
     if (!password || password.length < 8) {
