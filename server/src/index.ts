@@ -27,8 +27,22 @@ import { prisma } from './config/prisma';
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+const staticAllowedOrigins = ['http://localhost:5173', 'http://localhost:3000'];
+
 app.use(helmet());
-app.use(cors({ origin: ['http://localhost:5173', 'http://localhost:3000'], credentials: true }));
+app.use(cors({
+  origin: (origin, callback) => {
+    // No origin header (e.g. server-to-server, curl) — allow.
+    if (!origin) return callback(null, true);
+    if (staticAllowedOrigins.includes(origin)) return callback(null, true);
+    // Vercel gives every deployment (production alias + each preview) its
+    // own *.vercel.app subdomain, so allow the whole domain rather than
+    // hardcoding one URL that breaks the next time it's renamed.
+    if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(origin)) return callback(null, true);
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+}));
 app.use(express.json());
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
