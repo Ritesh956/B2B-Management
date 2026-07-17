@@ -551,6 +551,24 @@ export const bulkApproveInvoices = async (req: AuthRequest, res: Response): Prom
       res.status(400).json({ error: 'ids array is required' });
       return;
     }
+
+    // Only MATCHED invoices are eligible for a bulk (non-force) approval -
+    // find out up front which selected ids won't be touched, and why, so the
+    // caller isn't left guessing why "updated" is lower than the selection.
+    const requested = await prisma.invoice.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, invoiceNumber: true, status: true },
+    });
+    const foundIds = new Set(requested.map((inv) => inv.id));
+    const skipped = [
+      ...requested
+        .filter((inv) => inv.status !== InvoiceStatus.MATCHED)
+        .map((inv) => ({ id: inv.id, invoiceNumber: inv.invoiceNumber, reason: `status is ${inv.status}, not MATCHED` })),
+      ...ids
+        .filter((id) => !foundIds.has(id))
+        .map((id) => ({ id, invoiceNumber: null, reason: 'not found' })),
+    ];
+
     const result = await prisma.invoice.updateMany({
       where: { id: { in: ids }, status: InvoiceStatus.MATCHED },
       data: { status: InvoiceStatus.APPROVED },
@@ -561,10 +579,10 @@ export const bulkApproveInvoices = async (req: AuthRequest, res: Response): Prom
         action: 'BULK_APPROVE',
         entity: 'Invoice',
         entityId: 'bulk',
-        metadata: { ids, updated: result.count },
+        metadata: { ids, updated: result.count, skipped },
       },
     });
-    res.status(200).json({ updated: result.count });
+    res.status(200).json({ updated: result.count, skipped });
   } catch (err) {
     console.error('[bulkApproveInvoices]', err);
     res.status(500).json({ error: 'Failed to bulk approve invoices' });

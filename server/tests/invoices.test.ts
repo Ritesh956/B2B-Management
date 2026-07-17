@@ -19,6 +19,8 @@ vi.mock('../src/config/prisma', () => ({
       create: vi.fn(),
       findUnique: vi.fn(),
       update: vi.fn(),
+      findMany: vi.fn(),
+      updateMany: vi.fn(),
     },
     purchaseOrder: { findUnique: vi.fn() },
     user: { findUnique: vi.fn() },
@@ -60,6 +62,27 @@ describe('Invoices API', () => {
       const res = await request(app).patch('/api/v1/invoices/i1/approve').send({ reason: '' });
       expect(res.status).toBe(400);
       expect(res.body.error).toContain('A reason is required');
+    });
+  });
+
+  describe('PATCH /api/v1/invoices/bulk', () => {
+    it('should report which selected invoices were skipped and why', async () => {
+      (prisma.invoice.findMany as any).mockResolvedValue([
+        { id: 'i1', invoiceNumber: 'INV-1', status: 'MATCHED' },
+        { id: 'i2', invoiceNumber: 'INV-2', status: 'MISMATCHED' },
+      ]);
+      (prisma.invoice.updateMany as any).mockResolvedValue({ count: 1 });
+
+      const res = await request(app).patch('/api/v1/invoices/bulk').send({ ids: ['i1', 'i2', 'i3'] });
+
+      expect(res.status).toBe(200);
+      expect(res.body.updated).toBe(1);
+      expect(res.body.skipped).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: 'i2', reason: 'status is MISMATCHED, not MATCHED' }),
+          expect.objectContaining({ id: 'i3', reason: 'not found' }),
+        ])
+      );
     });
   });
 });

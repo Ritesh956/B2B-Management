@@ -78,7 +78,16 @@ export default function InvoiceList() {
     setBulkLoading(true);
     try {
       const { data: result } = await api.patch('/invoices/bulk', { ids: selectedArray });
-      toast.success(`${result.updated} invoice(s) approved successfully`);
+      const skippedCount = result.skipped?.length ?? 0;
+      if (skippedCount > 0) {
+        toast.success(`${result.updated} invoice(s) approved`);
+        toast.error(
+          `${skippedCount} skipped — only MATCHED invoices can be bulk approved (use force-approve on individual mismatched invoices instead)`,
+          { duration: 6000 }
+        );
+      } else {
+        toast.success(`${result.updated} invoice(s) approved successfully`);
+      }
       clearSelection();
       await refetch();
     } catch (err: any) {
