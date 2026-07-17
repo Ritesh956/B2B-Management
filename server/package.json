@@ -11,7 +11,8 @@
     "start": "node dist/index.js",
     "seed": "tsx prisma/seed.ts",
     "seed:if-needed": "npx -y tsx prisma/seedIfNeeded.ts",
-    "seed:bulk": "tsx prisma/seedBulk.ts"
+    "seed:bulk": "tsx prisma/seedBulk.ts",
+    "postinstall": "npx puppeteer browsers install chrome"
   },
   "keywords": [],
   "author": "",
