@@ -12,7 +12,7 @@ async function main() {
     return;
   }
   console.log('[seedIfNeeded] Demo admin missing — running full seed...');
-  execSync('npx tsx prisma/seed.ts', { stdio: 'inherit' });
+  execSync('npx -y tsx prisma/seed.ts', { stdio: 'inherit' });
 }
 
 main()
