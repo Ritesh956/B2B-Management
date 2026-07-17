@@ -4,6 +4,7 @@ import { AuthRequest } from '../middlewares/authenticate';
 import { InvoiceStatus, VendorStatus } from '@prisma/client';
 import { buildLocalFileUrl } from '../config/s3';
 import { stringify } from 'csv-stringify/sync';
+import { csvSafe } from '../utils/csvSafe';
 
 const roundPercent = (value: number): number => Math.round(value);
 
@@ -268,10 +269,10 @@ export const bulkExportVendors = async (req: AuthRequest, res: Response): Promis
     });
     const csvData = stringify(
       vendors.map((v) => [
-        v.companyName,
-        v.contactName,
-        v.email,
-        v.phone,
+        csvSafe(v.companyName),
+        csvSafe(v.contactName),
+        csvSafe(v.email),
+        csvSafe(v.phone),
         v.status,
         v.performanceScore ?? '',
       ]),
@@ -304,10 +305,10 @@ export const exportVendors = async (req: Request, res: Response): Promise<void> 
 
     const csvData = stringify(
       vendors.map((v) => [
-        v.companyName,
-        v.contactName,
-        v.email,
-        v.phone,
+        csvSafe(v.companyName),
+        csvSafe(v.contactName),
+        csvSafe(v.email),
+        csvSafe(v.phone),
         v.status,
         v.performanceScore ?? '',
       ]),

@@ -6,6 +6,9 @@ import { prisma } from '../src/config/prisma';
 import { enqueueEmail } from '../src/queues';
 import bcrypt from 'bcrypt';
 
+const mockTxUserCreate = vi.fn();
+const mockTxVendorCreate = vi.fn();
+
 vi.mock('../src/config/prisma', () => ({
   prisma: {
     user: {
@@ -13,9 +16,18 @@ vi.mock('../src/config/prisma', () => ({
       update: vi.fn(),
       create: vi.fn(),
     },
+    vendor: {
+      findUnique: vi.fn(),
+    },
     auditLog: {
       create: vi.fn(),
     },
+    $transaction: vi.fn((cb: any) =>
+      cb({
+        user: { create: mockTxUserCreate },
+        vendor: { create: mockTxVendorCreate },
+      })
+    ),
   },
 }));
 
@@ -53,19 +65,39 @@ describe('Auth API', () => {
       expect(prisma.user.create).not.toHaveBeenCalled();
     });
 
-    it('should allow self-registration for the vendor role', async () => {
+    it('should reject vendor registration missing companyName/phone', async () => {
       (prisma.user.findUnique as any).mockResolvedValue(null);
-      (prisma.user.create as any).mockResolvedValue({
-        id: '1', name: 'Eve', email: 'eve@test.com', role: 'VENDOR', notificationPreferences: {}, createdAt: new Date(),
-      });
       const res = await request(app).post('/api/v1/auth/register').send({
         name: 'Eve',
         email: 'eve@test.com',
         password: 'password123',
         role: 'VENDOR',
       });
+      expect(res.status).toBe(400);
+      expect(mockTxUserCreate).not.toHaveBeenCalled();
+    });
+
+    it('should allow self-registration for the vendor role and create a matching Vendor row', async () => {
+      (prisma.user.findUnique as any).mockResolvedValue(null);
+      (prisma.vendor.findUnique as any).mockResolvedValue(null);
+      mockTxUserCreate.mockResolvedValue({
+        id: '1', name: 'Eve', email: 'eve@test.com', role: 'VENDOR', notificationPreferences: {}, createdAt: new Date(),
+      });
+      mockTxVendorCreate.mockResolvedValue({ id: 'v1' });
+
+      const res = await request(app).post('/api/v1/auth/register').send({
+        name: 'Eve',
+        email: 'eve@test.com',
+        password: 'password123',
+        role: 'VENDOR',
+        companyName: 'Eve Co',
+        phone: '+919900000000',
+      });
       expect(res.status).toBe(201);
-      expect(prisma.user.create).toHaveBeenCalled();
+      expect(mockTxUserCreate).toHaveBeenCalled();
+      expect(mockTxVendorCreate).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ companyName: 'Eve Co', contactName: 'Eve', email: 'eve@test.com', phone: '+919900000000' }),
+      }));
     });
   });
 

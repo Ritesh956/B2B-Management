@@ -1,5 +1,6 @@
 import puppeteer from 'puppeteer';
 import { prisma } from '../config/prisma';
+import { escapeHtml } from '../utils/escapeHtml';
 
 type ApprovalStep = {
   role: string;
@@ -42,7 +43,7 @@ export const generatePO = async (poId: string): Promise<Buffer> => {
       return `
         <tr>
           <td>${idx + 1}</td>
-          <td>${item.description}</td>
+          <td>${escapeHtml(item.description)}</td>
           <td class="num">${Number(item.quantity).toFixed(2)}</td>
           <td class="num">${Number(item.unitPrice).toFixed(2)}</td>
           <td class="num">${lineTotal.toFixed(2)}</td>
@@ -55,9 +56,9 @@ export const generatePO = async (poId: string): Promise<Buffer> => {
     .map(
       (step) => `
       <tr>
-        <td>${step.role}</td>
+        <td>${escapeHtml(step.role)}</td>
         <td>${step.approved ? 'Approved' : 'Pending'}</td>
-        <td>${step.approvedAt ? new Date(step.approvedAt).toLocaleString() : '__________'}</td>
+        <td>${step.approvedAt ? escapeHtml(new Date(step.approvedAt).toLocaleString()) : '__________'}</td>
         <td>____________________</td>
       </tr>
     `
@@ -91,26 +92,26 @@ export const generatePO = async (poId: string): Promise<Buffer> => {
         <div class="logo">Company Logo Placeholder</div>
         <div class="title">
           <h1>PURCHASE ORDER</h1>
-          <div>PO No: ${po.poNumber}</div>
-          <div>Date: ${new Date(po.createdAt).toLocaleDateString()}</div>
+          <div>PO No: ${escapeHtml(po.poNumber)}</div>
+          <div>Date: ${escapeHtml(new Date(po.createdAt).toLocaleDateString())}</div>
         </div>
       </div>
 
       <table class="meta">
         <tr>
           <td><strong>Created By</strong></td>
-          <td>${po.createdBy.name} (${po.createdBy.email})</td>
+          <td>${escapeHtml(po.createdBy.name)} (${escapeHtml(po.createdBy.email)})</td>
           <td><strong>Status</strong></td>
-          <td>${po.status}</td>
+          <td>${escapeHtml(po.status)}</td>
         </tr>
       </table>
 
       <div class="section-title">Vendor Details</div>
       <table class="vendor">
-        <tr><td><strong>Company</strong></td><td>${po.vendor.companyName}</td></tr>
-        <tr><td><strong>Contact</strong></td><td>${po.vendor.contactName}</td></tr>
-        <tr><td><strong>Email</strong></td><td>${po.vendor.email}</td></tr>
-        <tr><td><strong>Phone</strong></td><td>${po.vendor.phone}</td></tr>
+        <tr><td><strong>Company</strong></td><td>${escapeHtml(po.vendor.companyName)}</td></tr>
+        <tr><td><strong>Contact</strong></td><td>${escapeHtml(po.vendor.contactName)}</td></tr>
+        <tr><td><strong>Email</strong></td><td>${escapeHtml(po.vendor.email)}</td></tr>
+        <tr><td><strong>Phone</strong></td><td>${escapeHtml(po.vendor.phone)}</td></tr>
       </table>
 
       <div class="section-title">Line Items</div>
@@ -153,6 +154,9 @@ export const generatePO = async (poId: string): Promise<Buffer> => {
 
   try {
     const page = await browser.newPage();
+    // Defense-in-depth: this template is static markup, never needs to run
+    // script, so disable JS execution even though values above are escaped.
+    await page.setJavaScriptEnabled(false);
     await page.setContent(html, { waitUntil: 'load' });
     const pdf = await page.pdf({ format: 'A4', printBackground: true, margin: { top: '16px', right: '16px', bottom: '16px', left: '16px' } });
     return Buffer.from(pdf);

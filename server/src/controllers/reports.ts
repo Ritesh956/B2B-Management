@@ -3,6 +3,7 @@ import { AuthRequest } from '../middlewares/authenticate';
 import { prisma } from '../config/prisma';
 import puppeteer from 'puppeteer';
 import { InvoiceStatus, POStatus } from '@prisma/client';
+import { escapeHtml } from '../utils/escapeHtml';
 
 export const getMonthlySummary = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -228,7 +229,7 @@ export const exportMonthlyPdf = async (req: AuthRequest, res: Response): Promise
           <tbody>
             ${topVendors.map(v => `
               <tr>
-                <td>${v.name}</td>
+                <td>${escapeHtml(v.name)}</td>
                 <td>${formatCurrency(v.spend)}</td>
               </tr>
             `).join('')}
@@ -245,6 +246,7 @@ export const exportMonthlyPdf = async (req: AuthRequest, res: Response): Promise
 
     const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
     const page = await browser.newPage();
+    await page.setJavaScriptEnabled(false);
     await page.setContent(html, { waitUntil: 'load' });
     const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
     await browser.close();

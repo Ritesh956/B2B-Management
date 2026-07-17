@@ -51,7 +51,7 @@ export const enqueueEmail = async (payload: SendEmailJob): Promise<void> => {
   const user = await prisma.user.findUnique({ where: { email: payload.to } });
   if (user && user.notificationPreferences) {
     const prefs = user.notificationPreferences as any;
-    if (prefs.email === false) {
+    if (prefs.emailEnabled === false) {
       console.log(`[emailQueue] Skipping email to ${payload.to} due to notification preferences`);
       return;
     }

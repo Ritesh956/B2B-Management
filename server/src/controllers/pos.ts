@@ -15,6 +15,7 @@ import { enqueueEmail } from '../queues';
 import { generatePO } from '../services/poPdf';
 import { stringify } from 'csv-stringify/sync';
 import { notifyUser } from '../utils/notify';
+import { csvSafe } from '../utils/csvSafe';
 
 const { PENDING, APPROVED, REJECTED } = APPROVAL_STEP_STATUS;
 
@@ -543,7 +544,7 @@ export const exportPOs = async (req: AuthRequest, res: Response): Promise<void> 
     const csvData = stringify(
       mapped.map((po) => [
         po.poNumber,
-        po.vendor.companyName,
+        csvSafe(po.vendor.companyName),
         po.totalAmount,
         po.status,
         po.currentApproverRole ?? '',

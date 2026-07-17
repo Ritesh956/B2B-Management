@@ -6,6 +6,7 @@ import { enqueueEmail } from '../queues';
 import { buildLocalFileUrl } from '../config/s3';
 import { stringify } from 'csv-stringify/sync';
 import { notifyUser } from '../utils/notify';
+import { csvSafe } from '../utils/csvSafe';
 
 const generateInvoiceNumber = async () => {
   const year = new Date().getFullYear();
@@ -522,7 +523,7 @@ export const exportInvoices = async (req: AuthRequest, res: Response): Promise<v
       invoices.map((inv) => [
         inv.invoiceNumber,
         inv.po.poNumber,
-        inv.vendor.companyName,
+        csvSafe(inv.vendor.companyName),
         inv.amount,
         inv.status,
         new Date(inv.submittedAt).toLocaleDateString('en-IN'),

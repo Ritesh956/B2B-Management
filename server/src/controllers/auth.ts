@@ -21,14 +21,13 @@ const resetTokenStore = new Map<string, { userId: string; expiresAt: number }>()
 // ─── POST /api/auth/register ──────────────────────────────────────────────────
 export const register = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { name, email, password, role, companyName, companyAddress, gstin } = req.body as {
+    const { name, email, password, role, companyName, phone } = req.body as {
       name: string;
       email: string;
       password: string;
       role: Role;
       companyName?: string;
-      companyAddress?: string;
-      gstin?: string;
+      phone?: string;
     };
 
     if (!name || !email || !password || !role) {
@@ -46,31 +45,57 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const existing = await prisma.user.findUnique({ where: { email } });
-    if (existing) {
+    if (!companyName || !phone) {
+      res.status(400).json({ error: 'companyName and phone are required for vendor registration' });
+      return;
+    }
+
+    const [existingUser, existingVendor] = await Promise.all([
+      prisma.user.findUnique({ where: { email } }),
+      prisma.vendor.findUnique({ where: { email } }),
+    ]);
+    if (existingUser) {
       res.status(409).json({ error: 'A user with this email already exists' });
+      return;
+    }
+    if (existingVendor) {
+      res.status(409).json({ error: 'A vendor with this email already exists' });
       return;
     }
 
     const hashed = await bcrypt.hash(password, 10);
 
-
-
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashed,
-        role,
-
-        notificationPreferences: {
-          emailEnabled: true,
-          poApprovals: true,
-          invoiceUpdates: true,
-          contractReminders: true,
+    // Vendor↔User are linked by email, not a foreign key (see CLAUDE.md) — a
+    // VENDOR user with no matching Vendor row can log in but every vendor
+    // portal endpoint 404s ("Vendor profile not found"). Create both in one
+    // transaction so a self-registered vendor account is actually usable.
+    const user = await prisma.$transaction(async (tx) => {
+      const createdUser = await tx.user.create({
+        data: {
+          name,
+          email,
+          password: hashed,
+          role,
+          notificationPreferences: {
+            emailEnabled: true,
+            poApprovals: true,
+            invoiceUpdates: true,
+            contractReminders: true,
+          },
         },
-      },
-      select: { id: true, name: true, email: true, role: true, notificationPreferences: true, createdAt: true },
+        select: { id: true, name: true, email: true, role: true, notificationPreferences: true, createdAt: true },
+      });
+
+      await tx.vendor.create({
+        data: {
+          companyName,
+          contactName: name,
+          email,
+          phone,
+        },
+      });
+
+      return createdUser;
     });
 
     res.status(201).json({ message: 'User registered successfully', user });

@@ -6,7 +6,7 @@ import api from '../services/api';
 
 const schema = z.object({
   companyName: z.string().min(2, 'Company name must be at least 2 characters'),
-  companyAddress: z.string().min(5, 'Please enter a valid address'),
+  phone: z.string().min(7, 'Please enter a valid phone number'),
   name: z.string().min(2, 'Your name must be at least 2 characters'),
   email: z.string().email('Enter a valid email'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
@@ -37,7 +37,7 @@ export default function RegisterPage() {
         password: data.password,
         role: 'VENDOR',
         companyName: data.companyName,
-        companyAddress: data.companyAddress,
+        phone: data.phone,
       });
       navigate('/login', { state: { registered: true } });
     } catch (err: any) {
@@ -218,7 +218,7 @@ export default function RegisterPage() {
               Company info
             </p>
             <Field label="Company Name" name="companyName" placeholder="Acme Corp" />
-            <Field label="Company Address" name="companyAddress" placeholder="123 Business Ave, Mumbai" />
+            <Field label="Company Phone" name="phone" type="tel" placeholder="+91 9900000000" />
 
             <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.18em', color: 'var(--text-muted)', margin: '8px 0 0' }}>
               Your details
