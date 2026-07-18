@@ -6,7 +6,7 @@ VendorHub is a robust, scalable B2B vendor management platform designed for comp
 - **Role-Based Access Control**: Strict permissions model via JWT and robust backend authorization.
 - **Vendor Portal**: An isolated, secure dashboard for vendors to manage their profile, POs, and invoices.
 - **Purchase & Invoices**: Full PO matching, soft-delete audits, and bulk approval actions for finance teams.
-- **Notifications**: In-app notification bell backed by polling; the server's Socket.io layer (JWT-authenticated, per-user rooms) is built for real-time push but not yet wired up client-side.
+- **Notifications**: In-app notification bell with live push via Socket.io (JWT-authenticated, per-user rooms) — mark-all-read, click-away-to-close, and deep links straight to the PO/invoice a notification is about, with a polling fallback in case the socket connection drops.
 - **Performance & Reports**: Graphical breakdowns using Recharts and headless browser PDF exports (Puppeteer).
 - **Hardened API**: Rate-limited, versioned (`/api/v1`), and validated environment startup logic.
 - **Resilient Infrastructure**: Soft deletes via Prisma, automated background queues (Bull/Redis), and scheduled cron jobs.
@@ -72,8 +72,11 @@ VendorHub is a robust, scalable B2B vendor management platform designed for comp
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://user:pass@localhost:5432/db` |
 | `REDIS_URL` | Redis connection string | `redis://localhost:6379` |
 | `JWT_SECRET` | Secure cryptographic secret | `super_secret_string` |
-| `AWS_REGION` | S3 Region for uploads | `us-east-1` |
-| `SMTP_HOST` | Email Provider Host | `smtp.gmail.com` |
+| `PUBLIC_BASE_URL` | This API's own public origin — baked into uploaded-file URLs so they're reachable from the deployed client | `https://vendorhub-server.onrender.com` |
+| `CLIENT_URL` | Deployed client origin — used to build password-reset/invite email links | `https://rit-vendor.vercel.app` |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` | Optional — outgoing email (OTP codes, reset/invite links, notifications) is disabled with a warning if unset, the server still boots either way | `smtp.your-provider.com`, `587`, ... |
+
+Uploaded files (invoice/contract/vendor-document PDFs) are stored on local disk (`server/uploads/`, multer), not S3 — there's no `AWS_*`/S3 config. On Render's free tier that disk is ephemeral (wiped on every deploy/restart); durable storage would need a real object store or a persistent disk, neither of which is wired up yet.
 
 ### Client
 | Name | Description | Example |
