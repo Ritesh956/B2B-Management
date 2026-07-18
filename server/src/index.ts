@@ -56,41 +56,15 @@ app.use(express.json({ limit: '1mb' }));
 // actually owns/may view that specific file.
 app.use('/uploads', fileRoutes);
 
-const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 200,
-  message: { error: 'Too many requests, please try again later' },
-});
-
-app.use(generalLimiter);
-
-// API Versioning Redirect (Deprecated Warning)
-app.get(/^\/api\//, (req, res, next) => {
-  if (req.originalUrl.startsWith('/api/v1/')) {
-    return next();
-  }
-  res.setHeader('Deprecation', 'true');
-  const v1Url = req.originalUrl.replace('/api/', '/api/v1/');
-  res.redirect(301, v1Url);
-});
-
-app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/vendors', vendorRoutes);
-app.use('/api/v1/pos', poRoutes);
-app.use('/api/v1/invoices', invoiceRoutes);
-app.use('/api/v1/contracts', contractRoutes);
-app.use('/api/v1/notifications', notificationRoutes);
-app.use('/api/v1/audit-logs', auditLogRoutes);
-app.use('/api/v1/dashboard', dashboardRoutes);
-app.use('/api/v1/search', searchRoutes);
-app.use('/api/v1/vendor', vendorPortalRoutes);
-app.use('/api/v1/reports', reportsRoutes);
-app.use('/api/v1/users', userRoutes);
-app.use('/api/v1/admin', adminRoutes);
-
-// This is Render's configured healthCheckPath (render.yaml) — a slow or
-// hanging response here can fail deploy health checks and readiness probes,
-// so every check below is timeout-guarded.
+// This is Render's configured healthCheckPath (render.yaml). It's registered
+// before the general rate limiter below (and so is never subject to it) on
+// purpose: Render polls this frequently during/after a deploy while waiting
+// for the instance to report healthy, and that polling previously counted
+// against the same 200-req/15min budget as real traffic. Deploy history shows
+// several past "Instance failed: HTTP health check failed with status code
+// 429" events caused by exactly this — a rate-limited health check makes
+// Render kill an otherwise-healthy instance. A slow or hanging response here
+// is a separate risk, so every check below is also timeout-guarded.
 const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> =>
   Promise.race([
     promise,
@@ -131,6 +105,38 @@ app.get('/api/v1/health', async (_req, res) => {
     version: "1.0.0"
   });
 });
+
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  message: { error: 'Too many requests, please try again later' },
+});
+
+app.use(generalLimiter);
+
+// API Versioning Redirect (Deprecated Warning)
+app.get(/^\/api\//, (req, res, next) => {
+  if (req.originalUrl.startsWith('/api/v1/')) {
+    return next();
+  }
+  res.setHeader('Deprecation', 'true');
+  const v1Url = req.originalUrl.replace('/api/', '/api/v1/');
+  res.redirect(301, v1Url);
+});
+
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/vendors', vendorRoutes);
+app.use('/api/v1/pos', poRoutes);
+app.use('/api/v1/invoices', invoiceRoutes);
+app.use('/api/v1/contracts', contractRoutes);
+app.use('/api/v1/notifications', notificationRoutes);
+app.use('/api/v1/audit-logs', auditLogRoutes);
+app.use('/api/v1/dashboard', dashboardRoutes);
+app.use('/api/v1/search', searchRoutes);
+app.use('/api/v1/vendor', vendorPortalRoutes);
+app.use('/api/v1/reports', reportsRoutes);
+app.use('/api/v1/users', userRoutes);
+app.use('/api/v1/admin', adminRoutes);
 
 // Start contract expiry cron job
 initQueues();
