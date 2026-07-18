@@ -1,13 +1,20 @@
 import { prisma } from '../config/prisma';
 import { getIo } from './socket';
 
-export const notifyUser = async (userId: string, message: string, type: string = 'INFO'): Promise<void> => {
+export interface NotifyLink {
+  entity: 'PurchaseOrder' | 'Invoice' | 'Vendor' | 'Contract';
+  entityId: string;
+}
+
+export const notifyUser = async (userId: string, message: string, type: string = 'INFO', link?: NotifyLink): Promise<void> => {
   try {
     const notification = await prisma.notification.create({
       data: {
         userId,
         message,
         read: false,
+        entity: link?.entity ?? null,
+        entityId: link?.entityId ?? null,
       },
     });
 

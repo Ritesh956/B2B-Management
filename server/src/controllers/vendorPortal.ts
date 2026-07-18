@@ -239,31 +239,45 @@ export const updateVendorProfile = async (req: AuthRequest, res: Response): Prom
       }
     }
 
-    const [updatedUser, updatedVendor] = await prisma.$transaction([
-      prisma.user.update({
-        where: { id: user.id },
-        data: {
-          name: nextName,
-          email: nextEmail,
-        },
-        select: { id: true, name: true, email: true },
-      }),
-      prisma.vendor.update({
-        where: { id: vendor.id },
-        data: {
-          contactName: nextContactName,
-          email: nextEmail,
-          phone: nextPhone,
-        },
-        select: {
-          id: true,
-          companyName: true,
-          contactName: true,
-          email: true,
-          phone: true,
-        },
-      }),
-    ]);
+    let updatedUser: { id: string; name: string; email: string };
+    let updatedVendor: { id: string; companyName: string; contactName: string; email: string; phone: string };
+    try {
+      [updatedUser, updatedVendor] = await prisma.$transaction([
+        prisma.user.update({
+          where: { id: user.id },
+          data: {
+            name: nextName,
+            email: nextEmail,
+          },
+          select: { id: true, name: true, email: true },
+        }),
+        prisma.vendor.update({
+          where: { id: vendor.id },
+          data: {
+            contactName: nextContactName,
+            email: nextEmail,
+            phone: nextPhone,
+          },
+          select: {
+            id: true,
+            companyName: true,
+            contactName: true,
+            email: true,
+            phone: true,
+          },
+        }),
+      ]);
+    } catch (err: any) {
+      // The pre-checks above race against concurrent writes, and they can't
+      // see soft-deleted rows that still occupy the unique email index —
+      // either way the transaction lands on P2002. Surface it as a 409, not
+      // an unhandled 500.
+      if (err?.code === 'P2002') {
+        res.status(409).json({ error: 'Email already in use' });
+        return;
+      }
+      throw err;
+    }
 
     await prisma.auditLog.create({
       data: {

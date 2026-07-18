@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../config/prisma';
 import { AuthRequest } from '../middlewares/authenticate';
 import { InvoiceStatus, VendorStatus } from '@prisma/client';
-import { buildLocalFileUrl } from '../config/s3';
+import { buildLocalFileUrl } from '../config/storage';
 import { stringify } from 'csv-stringify/sync';
 import { csvSafe } from '../utils/csvSafe';
 
@@ -75,29 +75,27 @@ export const listVendors = async (req: Request, res: Response): Promise<void> =>
 
 export const getVendorPerformance = async (_req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const vendors = await prisma.vendor.findMany({
-      orderBy: { companyName: 'asc' },
-      select: {
-        id: true,
-        companyName: true,
-        performanceScore: true,
-        purchaseOrders: {
-          select: {
-            status: true,
-          },
-        },
-        invoices: {
-          select: {
-            status: true,
-          },
-        },
-      },
-    });
+    // Aggregate in the database. The previous version pulled every vendor
+    // WITH every one of their POs and invoices into memory just to count
+    // them — O(all rows in three tables) per page view.
+    const [vendors, poCounts, invoiceCounts, mismatchedCounts] = await Promise.all([
+      prisma.vendor.findMany({
+        orderBy: { companyName: 'asc' },
+        select: { id: true, companyName: true, performanceScore: true },
+      }),
+      prisma.purchaseOrder.groupBy({ by: ['vendorId'], _count: { _all: true } }),
+      prisma.invoice.groupBy({ by: ['vendorId'], _count: { _all: true } }),
+      prisma.invoice.groupBy({ by: ['vendorId'], where: { status: InvoiceStatus.MISMATCHED }, _count: { _all: true } }),
+    ]);
+
+    const poCountByVendor = new Map(poCounts.map((row) => [row.vendorId, row._count._all]));
+    const invoiceCountByVendor = new Map(invoiceCounts.map((row) => [row.vendorId, row._count._all]));
+    const mismatchedByVendor = new Map(mismatchedCounts.map((row) => [row.vendorId, row._count._all]));
 
     const performance = vendors.map((vendor) => {
-      const totalPOs = vendor.purchaseOrders.length;
-      const totalInvoices = vendor.invoices.length;
-      const mismatchedInvoices = vendor.invoices.filter((invoice) => invoice.status === InvoiceStatus.MISMATCHED).length;
+      const totalPOs = poCountByVendor.get(vendor.id) ?? 0;
+      const totalInvoices = invoiceCountByVendor.get(vendor.id) ?? 0;
+      const mismatchedInvoices = mismatchedByVendor.get(vendor.id) ?? 0;
 
       return {
         id: vendor.id,

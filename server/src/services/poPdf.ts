@@ -5,6 +5,7 @@ import { escapeHtml } from '../utils/escapeHtml';
 type ApprovalStep = {
   role: string;
   approved: boolean;
+  statusLabel: string;
   approvedAt: string | null;
 };
 
@@ -29,12 +30,20 @@ export const generatePO = async (poId: string): Promise<Buffer> => {
   }>;
 
   const chain = (po.approvalChain as any) ?? { steps: [] };
+  // Steps carry `status: 'APPROVED' | 'PENDING' | 'REJECTED'` (see
+  // approvalService.ts) — there is no boolean `approved` field. Reading
+  // `s.approved` meant every PDF, including fully-approved POs, printed the
+  // whole signature table as "Pending".
   const steps: ApprovalStep[] = Array.isArray(chain.steps)
-    ? chain.steps.map((s: any) => ({
-        role: s.role,
-        approved: Boolean(s.approved),
-        approvedAt: s.approvedAt ?? null,
-      }))
+    ? chain.steps.map((s: any) => {
+        const approved = s.status === 'APPROVED' || Boolean(s.approved);
+        return {
+          role: s.role,
+          approved,
+          statusLabel: approved ? 'Approved' : s.status === 'REJECTED' ? 'Rejected' : 'Pending',
+          approvedAt: s.approvedAt ?? null,
+        };
+      })
     : [];
 
   const itemRows = items
@@ -57,7 +66,7 @@ export const generatePO = async (poId: string): Promise<Buffer> => {
       (step) => `
       <tr>
         <td>${escapeHtml(step.role)}</td>
-        <td>${step.approved ? 'Approved' : 'Pending'}</td>
+        <td>${escapeHtml(step.statusLabel)}</td>
         <td>${step.approvedAt ? escapeHtml(new Date(step.approvedAt).toLocaleString()) : '__________'}</td>
         <td>____________________</td>
       </tr>

@@ -271,26 +271,25 @@ export const getPOById = async (req: AuthRequest, res: Response): Promise<void> 
       }
     }
 
-    const invoicesWithPaidDate = await Promise.all(
-      po.invoices.map(async (invoice) => {
-        let paidAt: Date | null = null;
-        if (invoice.status === 'PAID') {
-          const log = await prisma.auditLog.findFirst({
-            where: {
-              entity: 'Invoice',
-              entityId: invoice.id,
-              action: 'PAY',
-            },
-            select: { createdAt: true },
-          });
-          paidAt = log?.createdAt ?? null;
-        }
-        return {
-          ...invoice,
-          paidAt,
-        };
-      })
-    );
+    // One query for all PAY timestamps instead of one query per paid invoice
+    // (the previous per-invoice findFirst was an N+1).
+    const paidInvoiceIds = po.invoices.filter((inv) => inv.status === 'PAID').map((inv) => inv.id);
+    const payLogs = paidInvoiceIds.length
+      ? await prisma.auditLog.findMany({
+          where: { entity: 'Invoice', entityId: { in: paidInvoiceIds }, action: 'PAY' },
+          select: { entityId: true, createdAt: true },
+          orderBy: { createdAt: 'asc' },
+        })
+      : [];
+    const paidAtByInvoiceId = new Map<string, Date>();
+    for (const log of payLogs) {
+      if (!paidAtByInvoiceId.has(log.entityId)) paidAtByInvoiceId.set(log.entityId, log.createdAt);
+    }
+
+    const invoicesWithPaidDate = po.invoices.map((invoice) => ({
+      ...invoice,
+      paidAt: paidAtByInvoiceId.get(invoice.id) ?? null,
+    }));
 
     const mappedPo = {
       ...mapPO(po),
@@ -387,18 +386,34 @@ export const approvePO = async (req: AuthRequest, res: Response): Promise<void> 
       reason,
     });
 
-    const po = await prisma.purchaseOrder.update({
-      where: { id },
+    // Guarded write: only apply if the PO is still at the exact state we read
+    // (same pending status AND same approver step). Two approvers clicking at
+    // the same moment used to double-advance the chain — read-then-write with
+    // no concurrency check.
+    const guarded = await prisma.purchaseOrder.updateMany({
+      where: {
+        id,
+        status: POStatus.PENDING_APPROVAL,
+        currentApproverIndex: existing.currentApproverIndex,
+      },
       data: {
         approvalChain: next.approvalChain as any,
         currentApproverIndex: next.currentApproverIndex,
         status: next.status as POStatus,
       },
+    });
+    if (guarded.count === 0) {
+      res.status(409).json({ error: 'This purchase order was just updated by someone else. Refresh and try again.' });
+      return;
+    }
+
+    const po = (await prisma.purchaseOrder.findUnique({
+      where: { id },
       include: {
         vendor: true,
         createdBy: { select: { id: true, name: true, email: true, role: true } },
       },
-    });
+    }))!;
 
     await prisma.auditLog.create({
       data: {
@@ -427,11 +442,11 @@ export const approvePO = async (req: AuthRequest, res: Response): Promise<void> 
 
       const queueTasks: Promise<unknown>[] = [];
       queueTasks.push(
-        notifyUser(po.createdById, `PO ${po.poNumber} approved successfully`, 'INFO')
+        notifyUser(po.createdById, `PO ${po.poNumber} approved successfully`, 'INFO', { entity: 'PurchaseOrder', entityId: po.id })
       );
       if (vendorUser?.id) {
         queueTasks.push(
-          notifyUser(vendorUser.id, `PO ${po.poNumber} has been approved`, 'INFO')
+          notifyUser(vendorUser.id, `PO ${po.poNumber} has been approved`, 'INFO', { entity: 'PurchaseOrder', entityId: po.id })
         );
       }
 
@@ -488,17 +503,31 @@ export const rejectPO = async (req: AuthRequest, res: Response): Promise<void> =
       reason,
     });
 
-    const po = await prisma.purchaseOrder.update({
-      where: { id },
+    // Same guarded-write pattern as approvePO — don't reject a PO whose
+    // state moved (approved/rejected/advanced) since this request read it.
+    const guarded = await prisma.purchaseOrder.updateMany({
+      where: {
+        id,
+        status: POStatus.PENDING_APPROVAL,
+        currentApproverIndex: existing.currentApproverIndex,
+      },
       data: {
         approvalChain: next.approvalChain as any,
         status: next.status as POStatus,
       },
+    });
+    if (guarded.count === 0) {
+      res.status(409).json({ error: 'This purchase order was just updated by someone else. Refresh and try again.' });
+      return;
+    }
+
+    const po = (await prisma.purchaseOrder.findUnique({
+      where: { id },
       include: {
         vendor: true,
         createdBy: { select: { id: true, name: true, email: true, role: true } },
       },
-    });
+    }))!;
 
     await prisma.auditLog.create({
       data: {
@@ -515,7 +544,7 @@ export const rejectPO = async (req: AuthRequest, res: Response): Promise<void> =
     });
 
     await Promise.allSettled([
-      notifyUser(po.createdById, `PO ${po.poNumber} was rejected${reason?.trim() ? `: ${reason.trim()}` : ''}`, 'INFO'),
+      notifyUser(po.createdById, `PO ${po.poNumber} was rejected${reason?.trim() ? `: ${reason.trim()}` : ''}`, 'INFO', { entity: 'PurchaseOrder', entityId: po.id }),
       enqueueEmail({
         to: po.createdBy.email,
         subject: `PO ${po.poNumber} rejected`,

@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { Role } from '@prisma/client';
 import { prisma } from '../config/prisma';
+import { env } from '../config/env';
 
 export interface AuthRequest extends Request {
   user?: {
@@ -28,8 +29,7 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
   const token = authHeader.split(' ')[1];
 
   try {
-    const secret = process.env.JWT_SECRET || 'secret';
-    const decoded = jwt.verify(token, secret) as JwtPayload;
+    const decoded = jwt.verify(token, env.JWT_SECRET) as JwtPayload;
 
     // Login issues this token before the OTP is checked, valid only for
     // POST /auth/verify-otp (which reads the header itself and never goes

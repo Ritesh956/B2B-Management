@@ -34,18 +34,22 @@ services:
           property: connectionString
       - key: JWT_SECRET
         generateValue: true
-      # Third-party credentials Render can't generate — fill these in on the
-      # dashboard after the first deploy (Environment tab). The server won't
-      # boot without them: server/src/config/env.ts validates all of these
-      # at startup and calls process.exit(1) if any are missing.
-      - key: AWS_REGION
-        sync: false
-      - key: AWS_ACCESS_KEY_ID
-        sync: false
-      - key: AWS_SECRET_ACCESS_KEY
-        sync: false
-      - key: S3_BUCKET_NAME
-        sync: false
+      # Public URL of this API — baked into the fileUrl stored for uploaded
+      # documents. Without it the server falls back to http://localhost:5000
+      # and every uploaded PDF link written to the DB is unreachable from the
+      # deployed client.
+      - key: PUBLIC_BASE_URL
+        value: https://vendorhub-server.onrender.com
+      # Deployed client URL — used to build password-reset / accept-invite
+      # links in outgoing email.
+      - key: CLIENT_URL
+        value: https://rit-vendor.vercel.app
+      # SMTP credentials Render can't generate — fill these in on the
+      # dashboard (Environment tab) to enable outgoing email. They are
+      # OPTIONAL: without them the server still boots, but OTP codes,
+      # reset/invite links and notification emails are skipped with a
+      # warning in the logs, and enabling 2FA is blocked so nobody gets
+      # locked out behind an email that can't send.
       - key: SMTP_HOST
         sync: false
       - key: SMTP_PORT

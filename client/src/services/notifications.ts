@@ -7,6 +7,8 @@ export interface NotificationItem {
   message: string;
   read: boolean;
   createdAt: string;
+  entity: 'PurchaseOrder' | 'Invoice' | 'Vendor' | 'Contract' | null;
+  entityId: string | null;
 }
 
 const notificationSchema: z.ZodType<NotificationItem> = z.object({
@@ -15,6 +17,8 @@ const notificationSchema: z.ZodType<NotificationItem> = z.object({
   message: z.string(),
   read: z.boolean(),
   createdAt: z.string(),
+  entity: z.enum(['PurchaseOrder', 'Invoice', 'Vendor', 'Contract']).nullable().default(null),
+  entityId: z.string().nullable().default(null),
 });
 
 const notificationListResponseSchema = z.object({
@@ -33,4 +37,6 @@ export const notificationService = {
     api
       .patch(`/notifications/${id}/read`)
       .then((r) => parseApiResponse(singleNotificationResponseSchema, r.data)),
+  markAllAsRead: () =>
+    api.patch('/notifications/read-all').then((r) => r.data as { updated: number }),
 };

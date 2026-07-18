@@ -12,6 +12,18 @@ import { formatCurrency as formatRupees } from '../utils/currency';
 
 const PIE_COLORS = ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ef4444'];
 
+// Maps each accent hex used by StatCard to its themed CSS variable — index.css
+// deepens these per-accent for light mode (e.g. --accent-secondary goes from
+// #06b6d4 to #0891b2) specifically for AA contrast on a white card. The
+// previous hardcoded pale hex values (#a5b4fc, #22d3ee, ...) were tuned only
+// for dark backgrounds and failed contrast once rendered on a light card.
+const ACCENT_VAR_BY_HEX: Record<string, string> = {
+  '#6366f1': 'var(--accent-primary)',
+  '#06b6d4': 'var(--accent-secondary)',
+  '#10b981': 'var(--accent-success)',
+  '#f59e0b': 'var(--accent-warning)',
+};
+
 const actionColor = (action: string) => {
   const a = action.toUpperCase();
   if (a.includes('CREATE') || a.includes('SUBMIT')) return '#34d399';
@@ -32,7 +44,7 @@ function StatCard({ label, value, accent, icon }: { label: string; value: number
           {icon}
         </div>
       </div>
-      <p className="stat-value" style={{ color: accent === '#6366f1' ? '#a5b4fc' : accent === '#06b6d4' ? '#22d3ee' : accent === '#10b981' ? '#34d399' : '#fbbf24' }}>
+      <p className="stat-value" style={{ color: ACCENT_VAR_BY_HEX[accent] ?? accent }}>
         {value}
       </p>
     </div>
@@ -40,7 +52,9 @@ function StatCard({ label, value, accent, icon }: { label: string; value: number
 }
 
 const CHART_STYLE = { fontSize: 12, fill: 'var(--text-muted)' };
-const CHART_GRID = { stroke: 'rgba(255,255,255,0.05)', strokeDasharray: '4 4' };
+// Was a hardcoded white-alpha stroke — invisible on the light theme's white
+// chart background. var(--border-dim) is already themed per light/dark.
+const CHART_GRID = { stroke: 'var(--border-dim)', strokeDasharray: '4 4' };
 const TOOLTIP_STYLE = { background: 'var(--bg-card)', border: '1px solid var(--border-subtle)', borderRadius: 10, color: 'var(--text-primary)', fontSize: 13 };
 
 export default function DashboardPage() {

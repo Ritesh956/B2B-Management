@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authenticate } from '../middlewares/authenticate';
 import { authorize } from '../middlewares/authorize';
 import { Role } from '@prisma/client';
-import { uploadContractPdf } from '../config/s3';
+import { uploadContractPdf } from '../config/storage';
 import {
   createContract,
   listContracts,

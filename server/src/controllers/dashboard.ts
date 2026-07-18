@@ -111,20 +111,19 @@ const getPOPendingMyApproval = async (userId: string, role: Role): Promise<numbe
     return 0;
   }
 
-  const pendingPOs = await prisma.purchaseOrder.findMany({
-    where: { status: POStatus.PENDING_APPROVAL },
-    select: {
-      approvalChain: true,
-      currentApproverIndex: true,
-    },
-  });
+  // Counted in SQL via a JSONB path into the approval chain — the previous
+  // version loaded EVERY pending PO into memory and filtered in JS, which
+  // is O(all pending rows) per dashboard load. Raw query, so the soft-delete
+  // extension doesn't apply: filter deletedAt explicitly.
+  const rows = await prisma.$queryRaw<{ count: bigint }[]>`
+    SELECT COUNT(*) AS count
+    FROM "PurchaseOrder"
+    WHERE status::text = 'PENDING_APPROVAL'
+      AND "deletedAt" IS NULL
+      AND ("approvalChain"->'steps'->"currentApproverIndex"->>'role') = ${role}
+  `;
 
-  return pendingPOs.filter((po) => {
-    const chain = po.approvalChain as any;
-    const steps = Array.isArray(chain?.steps) ? chain.steps : [];
-    const current = steps[po.currentApproverIndex];
-    return current?.role === role;
-  }).length;
+  return Number(rows[0]?.count ?? 0);
 };
 
 const getInvoicePendingReview = async (userId: string, role: Role): Promise<number> => {

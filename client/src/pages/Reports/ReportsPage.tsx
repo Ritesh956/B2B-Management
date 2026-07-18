@@ -180,7 +180,7 @@ export default function ReportsPage() {
                 <XAxis type="number" stroke="var(--text-muted)" tick={{ fill: 'var(--text-secondary)' }} />
                 <YAxis dataKey="vendorName" type="category" stroke="var(--text-muted)" width={150} tick={{ fontSize: 12, fill: 'var(--text-secondary)' }} />
                 <Tooltip 
-                  cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                  cursor={{ fill: 'var(--bg-hover)' }}
                   contentStyle={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: '10px' }}
                   itemStyle={{ color: 'var(--text-primary)', fontWeight: 600 }}
                   formatter={(value) => formatCurrency(Number(value))}
@@ -207,7 +207,7 @@ export default function ReportsPage() {
                 <YAxis stroke="var(--text-muted)" yAxisId="left" tick={{ fill: 'var(--text-secondary)' }} />
                 <YAxis stroke="var(--text-muted)" yAxisId="right" orientation="right" tick={{ fill: 'var(--text-secondary)' }} />
                 <Tooltip 
-                  cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                  cursor={{ fill: 'var(--bg-hover)' }}
                   contentStyle={{ backgroundColor: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', borderRadius: '10px' }}
                   itemStyle={{ color: 'var(--text-primary)', fontWeight: 600 }}
                 />

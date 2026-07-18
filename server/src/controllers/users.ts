@@ -7,7 +7,19 @@ import bcrypt from 'bcrypt';
 import { enqueueEmail } from '../queues';
 
 const INVITE_TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+const MIN_PASSWORD_LENGTH = 8;
 const clientUrl = (process.env.CLIENT_URL || 'https://rit-vendor.vercel.app').replace(/\/$/, '');
+
+// Guard for the two actions that can permanently lock an org out of its own
+// admin panel: demoting or deactivating the only remaining active admin.
+const countOtherActiveAdmins = async (excludingUserId: string): Promise<number> =>
+  prisma.user.count({
+    where: {
+      role: Role.ADMIN,
+      isActive: true,
+      id: { not: excludingUserId },
+    },
+  });
 
 export const listUsers = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -26,21 +38,82 @@ export const listUsers = async (req: AuthRequest, res: Response): Promise<void> 
   }
 };
 
+const issueInviteToken = async (userId: string): Promise<string> => {
+  // Any previous outstanding invite for this user dies when a new one is
+  // issued — only the most recent link works.
+  await prisma.authToken.updateMany({
+    where: { userId, purpose: AuthTokenPurpose.INVITE, usedAt: null },
+    data: { usedAt: new Date() },
+  });
+
+  const token = crypto.randomBytes(32).toString('hex');
+  await prisma.authToken.create({
+    data: {
+      token,
+      userId,
+      purpose: AuthTokenPurpose.INVITE,
+      expiresAt: new Date(Date.now() + INVITE_TOKEN_TTL_MS),
+    },
+  });
+  return token;
+};
+
+const sendInviteEmail = async (email: string, role: Role, token: string): Promise<void> => {
+  const inviteLink = `${clientUrl}/accept-invite/${token}`;
+  await enqueueEmail({
+    to: email,
+    subject: 'You\'ve been invited to VendorHub',
+    html: `<p>An administrator invited you to join VendorHub as ${role}. This link expires in 24 hours:</p><p><a href="${inviteLink}">${inviteLink}</a></p>`,
+  });
+};
+
 export const inviteUser = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     if (!req.user || req.user.role !== Role.ADMIN) {
       res.status(403).json({ error: 'Only admins can invite users' });
       return;
     }
-    const { email, role, name } = req.body;
+    const { email, role, name } = req.body as { email?: string; role?: Role; name?: string };
     if (!email || !role || !name) {
       res.status(400).json({ error: 'Email, name, and role are required' });
       return;
     }
 
+    if (!Object.values(Role).includes(role)) {
+      res.status(400).json({ error: `Invalid role. Must be one of: ${Object.values(Role).join(', ')}` });
+      return;
+    }
+
+    // An invited VENDOR user would have no matching Vendor row (the invite
+    // form collects no company name/phone), so their entire portal would 404
+    // with "Vendor profile not found". Vendors self-register instead — that
+    // flow creates both rows together.
+    if (role === Role.VENDOR) {
+      res.status(400).json({ error: 'Vendor accounts cannot be invited — vendors must self-register from the registration page, which also creates their company profile.' });
+      return;
+    }
+
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
-      res.status(400).json({ error: 'User already exists' });
+      // A user stuck in INVITED never completed onboarding — re-issue the
+      // invite instead of hard-failing (the old behavior dead-ended expired
+      // invites permanently).
+      if (existing.status === UserStatus.INVITED) {
+        const token = await issueInviteToken(existing.id);
+        await sendInviteEmail(existing.email, existing.role, token);
+        await prisma.auditLog.create({
+          data: {
+            userId: req.user.id,
+            action: 'RESEND_INVITE',
+            entity: 'User',
+            entityId: existing.id,
+            metadata: { email: existing.email, role: existing.role },
+          },
+        });
+        res.status(200).json({ message: 'This user had a pending invite — a fresh invite link has been sent.' });
+        return;
+      }
+      res.status(409).json({ error: 'User already exists' });
       return;
     }
 
@@ -56,21 +129,17 @@ export const inviteUser = async (req: AuthRequest, res: Response): Promise<void>
       }
     });
 
-    const token = crypto.randomBytes(32).toString('hex');
-    await prisma.authToken.create({
-      data: {
-        token,
-        userId: user.id,
-        purpose: AuthTokenPurpose.INVITE,
-        expiresAt: new Date(Date.now() + INVITE_TOKEN_TTL_MS),
-      },
-    });
+    const token = await issueInviteToken(user.id);
+    await sendInviteEmail(user.email, role, token);
 
-    const inviteLink = `${clientUrl}/accept-invite/${token}`;
-    await enqueueEmail({
-      to: user.email,
-      subject: 'You\'ve been invited to VendorHub',
-      html: `<p>An administrator invited you to join VendorHub as ${role}. This link expires in 24 hours:</p><p><a href="${inviteLink}">${inviteLink}</a></p>`,
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user.id,
+        action: 'INVITE',
+        entity: 'User',
+        entityId: user.id,
+        metadata: { email: user.email, role },
+      },
     });
 
     res.status(201).json({ message: 'User invited successfully' });
@@ -111,6 +180,11 @@ export const acceptInvite = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
+    if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH) {
+      res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` });
+      return;
+    }
+
     const entry = await prisma.authToken.findUnique({ where: { token } });
     if (!entry || entry.purpose !== AuthTokenPurpose.INVITE || entry.usedAt || entry.expiresAt < new Date()) {
       res.status(404).json({ error: 'Invalid or expired invite token' });
@@ -144,12 +218,62 @@ export const updateUserRole = async (req: AuthRequest, res: Response): Promise<v
       return;
     }
     const { id } = req.params as { id: string };
-    const { role } = req.body;
+    const { role } = req.body as { role?: Role };
+
+    if (!role || !Object.values(Role).includes(role)) {
+      res.status(400).json({ error: `Invalid role. Must be one of: ${Object.values(Role).join(', ')}` });
+      return;
+    }
+
+    // Role changes to/from VENDOR break the email-linked Vendor row model in
+    // both directions (a demoted vendor's Vendor record orphans; a promoted
+    // staff member has no Vendor record) — not a supported transition.
+    if (role === Role.VENDOR) {
+      res.status(400).json({ error: 'Users cannot be converted to vendors — vendor accounts are created through vendor self-registration.' });
+      return;
+    }
+
+    if (id === req.user.id) {
+      res.status(400).json({ error: 'You cannot change your own role' });
+      return;
+    }
+
+    const target = await prisma.user.findUnique({ where: { id }, select: { id: true, role: true, email: true } });
+    if (!target) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    if (target.role === Role.VENDOR) {
+      res.status(400).json({ error: 'Vendor users cannot be converted to staff roles — their vendor company record would be orphaned.' });
+      return;
+    }
+
+    // Demoting the last active admin would permanently lock the org out of
+    // user management, audit logs, and every admin-only action.
+    if (target.role === Role.ADMIN && role !== Role.ADMIN) {
+      const otherAdmins = await countOtherActiveAdmins(target.id);
+      if (otherAdmins === 0) {
+        res.status(400).json({ error: 'Cannot demote the last active admin' });
+        return;
+      }
+    }
 
     const user = await prisma.user.update({
       where: { id },
       data: { role },
     });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user.id,
+        action: 'CHANGE_ROLE',
+        entity: 'User',
+        entityId: id,
+        metadata: { email: target.email, from: target.role, to: role },
+      },
+    });
+
     res.status(200).json({ user });
   } catch (err) {
     console.error('[updateUserRole]', err);
@@ -165,10 +289,40 @@ export const deactivateUser = async (req: AuthRequest, res: Response): Promise<v
     }
     const { id } = req.params as { id: string };
 
+    if (id === req.user.id) {
+      res.status(400).json({ error: 'You cannot deactivate your own account' });
+      return;
+    }
+
+    const target = await prisma.user.findUnique({ where: { id }, select: { id: true, role: true, email: true, isActive: true } });
+    if (!target) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+
+    if (target.role === Role.ADMIN && target.isActive) {
+      const otherAdmins = await countOtherActiveAdmins(target.id);
+      if (otherAdmins === 0) {
+        res.status(400).json({ error: 'Cannot deactivate the last active admin' });
+        return;
+      }
+    }
+
     const user = await prisma.user.update({
       where: { id },
       data: { isActive: false, status: UserStatus.INACTIVE },
     });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user.id,
+        action: 'DEACTIVATE',
+        entity: 'User',
+        entityId: id,
+        metadata: { email: target.email, role: target.role },
+      },
+    });
+
     res.status(200).json({ user });
   } catch (err) {
     console.error('[deactivateUser]', err);

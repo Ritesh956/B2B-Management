@@ -15,29 +15,31 @@ export const getMonthlySummary = async (req: AuthRequest, res: Response): Promis
     const startDate = new Date(targetYear, targetMonth - 1, 1);
     const endDate = new Date(targetYear, targetMonth, 0, 23, 59, 59, 999);
 
-    const pos = await prisma.purchaseOrder.findMany({
-      where: {
-        createdAt: { gte: startDate, lte: endDate },
-      },
-    });
+    // Aggregate in the database — the old version fetched every PO and
+    // invoice row for the month into memory just to count/sum them.
+    const [poAgg, approvedInvoicesCount, paidInvoicesCount, newVendorsCount] = await Promise.all([
+      prisma.purchaseOrder.aggregate({
+        where: { createdAt: { gte: startDate, lte: endDate } },
+        _count: { _all: true },
+        _sum: { totalAmount: true },
+      }),
+      prisma.invoice.count({
+        where: {
+          submittedAt: { gte: startDate, lte: endDate },
+          status: { in: [InvoiceStatus.APPROVED, InvoiceStatus.PAID] },
+        },
+      }),
+      prisma.invoice.count({
+        where: { submittedAt: { gte: startDate, lte: endDate }, status: InvoiceStatus.PAID },
+      }),
+      prisma.vendor.count({
+        where: { createdAt: { gte: startDate, lte: endDate } },
+      }),
+    ]);
 
-    const invoices = await prisma.invoice.findMany({
-      where: {
-        submittedAt: { gte: startDate, lte: endDate },
-      },
-    });
+    const totalPOs = poAgg._count._all;
+    const totalSpend = Number((poAgg._sum.totalAmount ?? 0).toFixed(2));
 
-    const newVendorsCount = await prisma.vendor.count({
-      where: {
-        createdAt: { gte: startDate, lte: endDate },
-      },
-    });
-
-    const totalPOs = pos.length;
-    const totalSpend = pos.reduce((sum, po) => sum + po.totalAmount, 0);
-    const approvedInvoicesCount = invoices.filter((i) => i.status === InvoiceStatus.APPROVED || i.status === InvoiceStatus.PAID).length;
-    const paidInvoicesCount = invoices.filter((i) => i.status === InvoiceStatus.PAID).length;
-    
     res.json({
       totalPOs,
       totalSpend,
@@ -54,31 +56,40 @@ export const getMonthlySummary = async (req: AuthRequest, res: Response): Promis
 export const getVendorSpend = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { fromDate, toDate } = req.query as { fromDate?: string; toDate?: string };
-    const where: any = {};
-    if (fromDate || toDate) {
-      where.createdAt = {};
-      if (fromDate) where.createdAt.gte = new Date(fromDate);
-      if (toDate) where.createdAt.lte = new Date(toDate);
-    }
-
-    const vendors = await prisma.vendor.findMany({
-      include: {
-        purchaseOrders: { where },
-        invoices: {
-          where: {
-            submittedAt: where.createdAt
-          }
+    const dateFilter: { gte?: Date; lte?: Date } | undefined = (fromDate || toDate)
+      ? {
+          ...(fromDate ? { gte: new Date(fromDate) } : {}),
+          ...(toDate ? { lte: new Date(toDate) } : {}),
         }
-      }
-    });
+      : undefined;
+
+    // Aggregate per-vendor in the database — the old version pulled every
+    // vendor with ALL of their POs and invoices into memory.
+    const [vendors, poAgg, invoiceAgg] = await Promise.all([
+      prisma.vendor.findMany({ select: { id: true, companyName: true } }),
+      prisma.purchaseOrder.groupBy({
+        by: ['vendorId'],
+        where: dateFilter ? { createdAt: dateFilter } : {},
+        _sum: { totalAmount: true },
+        _count: { _all: true },
+      }),
+      prisma.invoice.groupBy({
+        by: ['vendorId'],
+        where: dateFilter ? { submittedAt: dateFilter } : {},
+        _count: { _all: true },
+      }),
+    ]);
+
+    const poByVendor = new Map(poAgg.map((row) => [row.vendorId, row]));
+    const invoiceCountByVendor = new Map(invoiceAgg.map((row) => [row.vendorId, row._count._all]));
 
     const spendData = vendors.map((v) => {
-      const totalSpend = v.purchaseOrders.reduce((sum, po) => sum + po.totalAmount, 0);
+      const po = poByVendor.get(v.id);
       return {
         vendorName: v.companyName,
-        totalSpend,
-        poCount: v.purchaseOrders.length,
-        invoiceCount: v.invoices.length,
+        totalSpend: Number((po?._sum.totalAmount ?? 0).toFixed(2)),
+        poCount: po?._count._all ?? 0,
+        invoiceCount: invoiceCountByVendor.get(v.id) ?? 0,
       };
     }).sort((a, b) => b.totalSpend - a.totalSpend);
 
@@ -143,29 +154,46 @@ export const exportMonthlyPdf = async (req: AuthRequest, res: Response): Promise
     const startDate = new Date(targetYear, targetMonth - 1, 1);
     const endDate = new Date(targetYear, targetMonth, 0, 23, 59, 59, 999);
 
-    const pos = await prisma.purchaseOrder.findMany({
-      where: { createdAt: { gte: startDate, lte: endDate } },
-    });
-    const invoices = await prisma.invoice.findMany({
-      where: { submittedAt: { gte: startDate, lte: endDate } },
-    });
-    const newVendorsCount = await prisma.vendor.count({
-      where: { createdAt: { gte: startDate, lte: endDate } },
-    });
+    // Same DB-side aggregation as getMonthlySummary.
+    const [poAgg, approvedInvoicesCount, paidInvoicesCount, newVendorsCount, topVendorSpendRaw] = await Promise.all([
+      prisma.purchaseOrder.aggregate({
+        where: { createdAt: { gte: startDate, lte: endDate } },
+        _count: { _all: true },
+        _sum: { totalAmount: true },
+      }),
+      prisma.invoice.count({
+        where: {
+          submittedAt: { gte: startDate, lte: endDate },
+          status: { in: [InvoiceStatus.APPROVED, InvoiceStatus.PAID] },
+        },
+      }),
+      prisma.invoice.count({
+        where: { submittedAt: { gte: startDate, lte: endDate }, status: InvoiceStatus.PAID },
+      }),
+      prisma.vendor.count({
+        where: { createdAt: { gte: startDate, lte: endDate } },
+      }),
+      prisma.purchaseOrder.groupBy({
+        by: ['vendorId'],
+        where: { createdAt: { gte: startDate, lte: endDate } },
+        _sum: { totalAmount: true },
+        orderBy: { _sum: { totalAmount: 'desc' } },
+        take: 5,
+      }),
+    ]);
 
-    const totalPOs = pos.length;
-    const totalSpend = pos.reduce((sum, po) => sum + po.totalAmount, 0);
-    const approvedInvoicesCount = invoices.filter((i) => i.status === InvoiceStatus.APPROVED || i.status === InvoiceStatus.PAID).length;
-    const paidInvoicesCount = invoices.filter((i) => i.status === InvoiceStatus.PAID).length;
+    const totalPOs = poAgg._count._all;
+    const totalSpend = Number((poAgg._sum.totalAmount ?? 0).toFixed(2));
 
-    // Get Top 5 Vendors
-    const vendors = await prisma.vendor.findMany({
-      include: { purchaseOrders: { where: { createdAt: { gte: startDate, lte: endDate } } } }
-    });
-    const topVendors = vendors.map(v => ({
-      name: v.companyName,
-      spend: v.purchaseOrders.reduce((sum, po) => sum + po.totalAmount, 0)
-    })).sort((a, b) => b.spend - a.spend).slice(0, 5);
+    const topVendorIds = topVendorSpendRaw.map((row) => row.vendorId);
+    const topVendorNames = topVendorIds.length
+      ? await prisma.vendor.findMany({ where: { id: { in: topVendorIds } }, select: { id: true, companyName: true } })
+      : [];
+    const nameById = new Map(topVendorNames.map((v) => [v.id, v.companyName]));
+    const topVendors = topVendorSpendRaw.map((row) => ({
+      name: nameById.get(row.vendorId) ?? 'Unknown Vendor',
+      spend: Number((row._sum.totalAmount ?? 0).toFixed(2)),
+    }));
 
     const formatCurrency = (val: number) => `Rs. ${val.toLocaleString('en-IN')}`;
     const monthName = new Date(targetYear, targetMonth - 1).toLocaleString('default', { month: 'long' });

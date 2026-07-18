@@ -20,9 +20,11 @@ import reportsRoutes from './routes/reports';
 import userRoutes from './routes/users';
 import adminRoutes from './routes/admin';
 import fileRoutes from './routes/files';
-import { startContractExpiryJob } from './services/contractExpiryJob';
+import { startContractExpiryJob, runContractExpiryCheck } from './services/contractExpiryJob';
 import { initQueues } from './queues';
 import { prisma } from './config/prisma';
+import { isAllowedOrigin } from './config/cors';
+import { isRedisAvailable } from './queues/redisAvailability';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -32,23 +34,22 @@ const PORT = process.env.PORT || 5000;
 // all users share one rate-limit bucket and lock each other out.
 app.set('trust proxy', 1);
 
-const staticAllowedOrigins = ['http://localhost:5173', 'http://localhost:3000'];
-
 app.use(helmet());
 app.use(cors({
   origin: (origin, callback) => {
     // No origin header (e.g. server-to-server, curl) — allow.
     if (!origin) return callback(null, true);
-    if (staticAllowedOrigins.includes(origin)) return callback(null, true);
-    // Vercel gives every deployment (production alias + each preview) its
-    // own *.vercel.app subdomain, so allow the whole domain rather than
-    // hardcoding one URL that breaks the next time it's renamed.
-    if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(origin)) return callback(null, true);
+    // Pinned to the real client origins (prod domain + this project's own
+    // Vercel previews + local dev) — see config/cors.ts. The old check
+    // allowed any *.vercel.app, i.e. anyone's deployment.
+    if (isAllowedOrigin(origin)) return callback(null, true);
     callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
 }));
-app.use(express.json());
+// 1mb is generous for every JSON body this API accepts (file uploads go
+// through multer, not the JSON parser) and caps memory per request.
+app.use(express.json({ limit: '1mb' }));
 // Was express.static (no auth at all) - any invoice/contract/vendor-document
 // PDF was readable by anyone with (or guessing) its URL. Now goes through
 // getUploadedFile, which requires a valid session and checks the requester
@@ -87,27 +88,40 @@ app.use('/api/v1/reports', reportsRoutes);
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/admin', adminRoutes);
 
-import { emailQueue } from './queues/emailQueue'; // Use any queue for redis client
+// This is Render's configured healthCheckPath (render.yaml) — a slow or
+// hanging response here can fail deploy health checks and readiness probes,
+// so every check below is timeout-guarded.
+const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T> =>
+  Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+  ]);
 
 app.get('/api/v1/health', async (_req, res) => {
   let dbStatus = 'connected';
   let redisStatus = 'connected';
-  
+
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    await withTimeout(prisma.$queryRaw`SELECT 1`, 2000);
   } catch (err) {
     dbStatus = 'error';
   }
 
   try {
-    const ping = await emailQueue.client.ping();
-    if (ping !== 'PONG') throw new Error('Redis ping failed');
+    // A previous version called emailQueue.client.ping() directly — ioredis's
+    // default retry strategy means that call never rejects while Redis is
+    // unreachable, it just queues and waits, so this endpoint hung forever
+    // instead of reporting "degraded". isRedisAvailable() is a bare TCP probe
+    // with its own 300ms timeout (see queues/redisAvailability.ts), so it
+    // always resolves quickly regardless of ioredis's internal state.
+    const reachable = await withTimeout(isRedisAvailable(), 1000);
+    if (!reachable) redisStatus = 'error';
   } catch (err) {
     redisStatus = 'error';
   }
 
   const status = (dbStatus === 'connected' && redisStatus === 'connected') ? 'ok' : 'degraded';
-  
+
   res.status(200).json({
     status,
     db: dbStatus,
@@ -121,6 +135,14 @@ app.get('/api/v1/health', async (_req, res) => {
 // Start contract expiry cron job
 initQueues();
 startContractExpiryJob();
+
+// On Render's free tier the instance sleeps between requests, so the 09:00
+// cron above frequently never fires — nothing is awake at 09:00. Running the
+// same sweep once shortly after every boot means each wake-up (any incoming
+// request) also catches up on contract expiry transitions.
+setTimeout(() => {
+  runContractExpiryCheck().catch((err) => console.error('[ContractExpiryJob] Boot-time sweep failed:', err));
+}, 10_000);
 
 const httpServer = createServer(app);
 initSocket(httpServer);

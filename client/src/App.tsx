@@ -1,33 +1,10 @@
-import { useEffect } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { useAuthStore } from './store/authStore';
+import { useAuthStore, Role } from './store/authStore';
 import ProtectedRoute from './components/ProtectedRoute';
 import AppLayout from './components/AppLayout';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
-import DashboardPage from './pages/DashboardPage';
-import VendorList from './pages/Vendors/VendorList';
-import VendorPerformancePage from './pages/Vendors/VendorPerformancePage';
-import VendorDetail from './pages/Vendors/VendorDetail';
-import POList from './pages/POs/POList';
-import PODetail from './pages/POs/PODetail';
-import InvoiceList from './pages/Invoices/InvoiceList';
-import InvoiceDetail from './pages/Invoices/InvoiceDetail';
-import ContractList from './pages/Contracts/ContractList';
-import ContractDetail from './pages/Contracts/ContractDetail';
-import AuditLogPage from './pages/AuditLogs/AuditLogPage';
-import ReportsPage from './pages/Reports/ReportsPage';
-import VendorOnlyRoute from './components/VendorOnlyRoute';
-import VendorLayout from './components/VendorLayout';
-import VendorDashboardPage from './pages/Vendor/VendorDashboardPage';
-import VendorInvoiceNewPage from './pages/Vendor/VendorInvoiceNewPage';
-import VendorProfilePage from './pages/Vendor/VendorProfilePage';
-import VendorPOList from './pages/Vendor/VendorPOList';
-import VendorInvoiceList from './pages/Vendor/VendorInvoiceList';
-import VendorContractList from './pages/Vendor/VendorContractList';
-import SettingsPage from './pages/SettingsPage';
-import UserManagementPage from './pages/Users/UserManagementPage';
-import AcceptInvitePage from './pages/Users/AcceptInvitePage';
 import VerifyOtpPage from './pages/VerifyOtpPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
@@ -37,16 +14,71 @@ import { SkeletonTheme } from './components/Skeletons';
 import { ThemeProvider } from './context/ThemeContext';
 import { useTheme } from './hooks/useTheme';
 
+// Everything behind auth is route-split — none of it is needed for the very
+// first paint (the login screen), and several of these pull in Recharts,
+// which was the single biggest contributor to the 1.2MB single-chunk bundle.
+// The public auth-flow pages above stay eagerly bundled since they're what
+// an unauthenticated visitor loads first anyway.
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const VendorList = lazy(() => import('./pages/Vendors/VendorList'));
+const VendorPerformancePage = lazy(() => import('./pages/Vendors/VendorPerformancePage'));
+const VendorDetail = lazy(() => import('./pages/Vendors/VendorDetail'));
+const POList = lazy(() => import('./pages/POs/POList'));
+const PODetail = lazy(() => import('./pages/POs/PODetail'));
+const InvoiceList = lazy(() => import('./pages/Invoices/InvoiceList'));
+const InvoiceDetail = lazy(() => import('./pages/Invoices/InvoiceDetail'));
+const ContractList = lazy(() => import('./pages/Contracts/ContractList'));
+const ContractDetail = lazy(() => import('./pages/Contracts/ContractDetail'));
+const AuditLogPage = lazy(() => import('./pages/AuditLogs/AuditLogPage'));
+const ReportsPage = lazy(() => import('./pages/Reports/ReportsPage'));
+const VendorDashboardPage = lazy(() => import('./pages/Vendor/VendorDashboardPage'));
+const VendorInvoiceNewPage = lazy(() => import('./pages/Vendor/VendorInvoiceNewPage'));
+const VendorProfilePage = lazy(() => import('./pages/Vendor/VendorProfilePage'));
+const VendorPOList = lazy(() => import('./pages/Vendor/VendorPOList'));
+const VendorInvoiceList = lazy(() => import('./pages/Vendor/VendorInvoiceList'));
+const VendorContractList = lazy(() => import('./pages/Vendor/VendorContractList'));
+const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const UserManagementPage = lazy(() => import('./pages/Users/UserManagementPage'));
+const AcceptInvitePage = lazy(() => import('./pages/Users/AcceptInvitePage'));
+
+import VendorOnlyRoute from './components/VendorOnlyRoute';
+import VendorLayout from './components/VendorLayout';
+
 function SkeletonThemeWrapper({ children }: { children: React.ReactNode }) {
   const { theme } = useTheme();
   return (
-    <SkeletonTheme 
-      baseColor={theme === 'dark' ? '#1e2030' : '#f1f5f9'} 
+    <SkeletonTheme
+      baseColor={theme === 'dark' ? '#1e2030' : '#f1f5f9'}
       highlightColor={theme === 'dark' ? '#2a2d3e' : '#e2e8f0'}
     >
       {children}
     </SkeletonTheme>
   );
+}
+
+function RouteSpinner() {
+  return (
+    <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid var(--border-subtle)', borderTopColor: 'var(--accent-primary)', animation: 'spin 0.8s linear infinite' }} />
+    </div>
+  );
+}
+
+// ProtectedRoute above only checks "is there a token" — it doesn't know
+// about roles, so a VENDOR (or a MANAGER hitting an ADMIN-only page) could
+// previously load any AppLayout route directly by URL and get an empty page
+// backed by 403s. This mirrors each route's actual backend authorization
+// (see server/src/routes/*.ts) so the redirect happens before a doomed
+// request is even made.
+const STAFF_ROLES = [Role.ADMIN, Role.FINANCE, Role.PROCUREMENT, Role.MANAGER];
+
+function RoleRoute({ roles, children }: { roles: Role[]; children: React.ReactElement }) {
+  const user = useAuthStore((s) => s.user);
+  if (!user) return null; // ProtectedRoute's loading/redirect already covers this
+  if (!roles.includes(user.role)) {
+    return <Navigate to={user.role === Role.VENDOR ? '/vendor/dashboard' : '/dashboard'} replace />;
+  }
+  return children;
 }
 
 export default function App() {
@@ -74,6 +106,7 @@ export default function App() {
       <SkeletonThemeWrapper>
         <Toaster position="top-right" />
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <Suspense fallback={<RouteSpinner />}>
         <Routes>
         {/* Public routes */}
         <Route path="/login" element={<LoginPage />} />
@@ -86,20 +119,20 @@ export default function App() {
         {/* Protected routes */}
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/vendors" element={<VendorList />} />
-            <Route path="/vendors/performance" element={<VendorPerformancePage />} />
-            <Route path="/vendors/:id" element={<VendorDetail />} />
-            <Route path="/pos" element={<POList />} />
-            <Route path="/pos/:id" element={<PODetail />} />
-            <Route path="/invoices" element={<InvoiceList />} />
-            <Route path="/invoices/:id" element={<InvoiceDetail />} />
-            <Route path="/contracts" element={<ContractList />} />
-            <Route path="/contracts/:id" element={<ContractDetail />} />
-            <Route path="/audit-logs" element={<AuditLogPage />} />
-            <Route path="/reports" element={<ReportsPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/admin/users" element={<UserManagementPage />} />
+            <Route path="/dashboard" element={<RoleRoute roles={STAFF_ROLES}><DashboardPage /></RoleRoute>} />
+            <Route path="/vendors" element={<RoleRoute roles={STAFF_ROLES}><VendorList /></RoleRoute>} />
+            <Route path="/vendors/performance" element={<RoleRoute roles={STAFF_ROLES}><VendorPerformancePage /></RoleRoute>} />
+            <Route path="/vendors/:id" element={<RoleRoute roles={STAFF_ROLES}><VendorDetail /></RoleRoute>} />
+            <Route path="/pos" element={<RoleRoute roles={STAFF_ROLES}><POList /></RoleRoute>} />
+            <Route path="/pos/:id" element={<RoleRoute roles={STAFF_ROLES}><PODetail /></RoleRoute>} />
+            <Route path="/invoices" element={<RoleRoute roles={[Role.ADMIN, Role.FINANCE]}><InvoiceList /></RoleRoute>} />
+            <Route path="/invoices/:id" element={<RoleRoute roles={[Role.ADMIN, Role.FINANCE]}><InvoiceDetail /></RoleRoute>} />
+            <Route path="/contracts" element={<RoleRoute roles={STAFF_ROLES}><ContractList /></RoleRoute>} />
+            <Route path="/contracts/:id" element={<RoleRoute roles={STAFF_ROLES}><ContractDetail /></RoleRoute>} />
+            <Route path="/audit-logs" element={<RoleRoute roles={[Role.ADMIN]}><AuditLogPage /></RoleRoute>} />
+            <Route path="/reports" element={<RoleRoute roles={[Role.FINANCE, Role.ADMIN]}><ReportsPage /></RoleRoute>} />
+            <Route path="/settings" element={<RoleRoute roles={STAFF_ROLES}><SettingsPage /></RoleRoute>} />
+            <Route path="/admin/users" element={<RoleRoute roles={[Role.ADMIN]}><UserManagementPage /></RoleRoute>} />
 
           </Route>
 
@@ -121,6 +154,7 @@ export default function App() {
         <Route path="/" element={<Navigate to={token ? '/dashboard' : '/login'} replace />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
+      </Suspense>
     </BrowserRouter>
     </SkeletonThemeWrapper>
     </ThemeProvider>

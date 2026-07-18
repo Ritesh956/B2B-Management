@@ -29,6 +29,25 @@ export const listNotifications = async (req: AuthRequest, res: Response): Promis
   }
 };
 
+export const markAllNotificationsAsRead = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.user) {
+      res.status(401).json({ error: 'Not authenticated' });
+      return;
+    }
+
+    const result = await prisma.notification.updateMany({
+      where: { userId: req.user.id, read: false },
+      data: { read: true },
+    });
+
+    res.status(200).json({ updated: result.count });
+  } catch (err) {
+    console.error('[markAllNotificationsAsRead]', err);
+    res.status(500).json({ error: 'Failed to update notifications' });
+  }
+};
+
 export const markNotificationAsRead = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     if (!req.user) {

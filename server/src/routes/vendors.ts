@@ -3,7 +3,7 @@ import rateLimit from 'express-rate-limit';
 import { createVendor, listVendors, getVendor, updateVendorStatus, getVendorPerformance, updateVendorPerformanceScore, exportVendors, bulkUpdateVendors, bulkExportVendors } from '../controllers/vendors';
 import { authenticate } from '../middlewares/authenticate';
 import { authorize } from '../middlewares/authorize';
-import { upload } from '../config/s3';
+import { upload } from '../config/storage';
 import { Role } from '@prisma/client';
 
 const router = Router();
@@ -28,7 +28,6 @@ router.get('/', listVendors);
 router.get('/export', exportLimiter, exportVendors);
 router.get('/performance', getVendorPerformance);
 router.patch('/:id/performance', authorize([Role.ADMIN]), updateVendorPerformanceScore);
-router.patch('/:id/performance-score', authorize([Role.ADMIN]), updateVendorPerformanceScore);
 router.patch('/bulk', authorize([Role.ADMIN]), bulkUpdateVendors);
 router.post('/bulk-export', exportLimiter, bulkExportVendors);
 router.get('/:id', getVendor);

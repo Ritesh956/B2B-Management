@@ -1,11 +1,18 @@
 import { useEffect, useState } from 'react';
 import { listUsers, updateUserRole, deactivateUser, type User } from '../../services/users';
-import { Role } from '../../store/authStore';
+import { useAuthStore, Role } from '../../store/authStore';
 import RoleGate from '../../components/RoleGate';
 import InviteUserModal from './InviteUserModal';
+import { getErrorMessage } from '../../utils/apiError';
 import toast from 'react-hot-toast';
 
+// Vendor accounts are managed through the Vendor directory, not here — the
+// server rejects converting a user to/from VENDOR (it would orphan or lack
+// the linked Vendor company record), so don't offer it as an option.
+const ASSIGNABLE_ROLES = Object.values(Role).filter((r) => r !== Role.VENDOR);
+
 export default function UserManagementPage() {
+  const currentUserId = useAuthStore((s) => s.user?.id);
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -33,7 +40,7 @@ export default function UserManagementPage() {
       toast.success('User role updated');
     } catch (err) {
       console.error('Failed to update role', err);
-      toast.error('Failed to update user role');
+      toast.error(getErrorMessage(err, 'Failed to update user role'));
     }
   };
 
@@ -54,7 +61,7 @@ export default function UserManagementPage() {
                   toast.success('User deactivated');
                 } catch (err) {
                   console.error('Failed to deactivate user', err);
-                  toast.error('Failed to deactivate user');
+                  toast.error(getErrorMessage(err, 'Failed to deactivate user'));
                 }
               }}
             >
@@ -112,23 +119,31 @@ export default function UserManagementPage() {
                     <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{user.name}</td>
                     <td style={{ color: 'var(--text-secondary)' }}>{user.email}</td>
                     <td>
-                      <select
-                        value={user.role}
-                        onChange={(e) => handleRoleChange(user.id, e.target.value as Role)}
-                        style={{
-                          background: 'var(--bg-card)',
-                          border: '1px solid var(--border-dim)',
-                          borderRadius: 8,
-                          padding: '6px 12px',
-                          color: 'var(--text-primary)',
-                          fontSize: 13,
-                          outline: 'none',
-                        }}
-                      >
-                        {Object.values(Role).map((r) => (
-                          <option key={r} value={r}>{r}</option>
-                        ))}
-                      </select>
+                      {user.role === Role.VENDOR ? (
+                        <span className="badge badge-vendor" title="Vendor accounts are managed from the Vendor directory">VENDOR</span>
+                      ) : (
+                        <select
+                          value={user.role}
+                          disabled={user.id === currentUserId}
+                          title={user.id === currentUserId ? 'You cannot change your own role' : undefined}
+                          onChange={(e) => handleRoleChange(user.id, e.target.value as Role)}
+                          style={{
+                            background: 'var(--bg-card)',
+                            border: '1px solid var(--border-dim)',
+                            borderRadius: 8,
+                            padding: '6px 12px',
+                            color: 'var(--text-primary)',
+                            fontSize: 13,
+                            outline: 'none',
+                            opacity: user.id === currentUserId ? 0.6 : 1,
+                            cursor: user.id === currentUserId ? 'not-allowed' : 'pointer',
+                          }}
+                        >
+                          {ASSIGNABLE_ROLES.map((r) => (
+                            <option key={r} value={r}>{r}</option>
+                          ))}
+                        </select>
+                      )}
                     </td>
                     <td>
                       <span className={`badge badge-${user.isActive ? 'approved' : 'rejected'}`}>
@@ -139,7 +154,7 @@ export default function UserManagementPage() {
                       {user.lastLogin ? new Date(user.lastLogin).toLocaleString() : 'Never'}
                     </td>
                     <td>
-                      {user.isActive && (
+                      {user.isActive && user.id !== currentUserId && (
                         <button
                           onClick={() => handleDeactivate(user.id)}
                           style={{

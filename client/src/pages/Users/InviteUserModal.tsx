@@ -91,7 +91,10 @@ export default function InviteUserModal({ onClose, onSuccess }: InviteUserModalP
               onChange={(e) => setRole(e.target.value as Role)}
               className="input-base"
             >
-              {Object.values(Role).map((r) => (
+              {/* Vendor accounts can't be invited — they self-register, which
+                  also collects the company name/phone needed to create their
+                  Vendor record (see CLAUDE.md's vendor-invite note). */}
+              {Object.values(Role).filter((r) => r !== Role.VENDOR).map((r) => (
                 <option key={r} value={r}>{r}</option>
               ))}
             </select>

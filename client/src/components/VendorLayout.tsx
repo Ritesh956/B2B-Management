@@ -4,6 +4,7 @@ import NotificationBell from './NotificationBell';
 import HealthIndicator from './HealthIndicator';
 import ErrorBoundary from './ErrorBoundary';
 import ThemeToggle from './ThemeToggle';
+import { useSocket } from '../hooks/useSocket';
 
 const VENDOR_NAV = [
   {
@@ -32,6 +33,7 @@ export default function VendorLayout() {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
+  useSocket();
 
   const handleLogout = () => { logout(); navigate('/login'); };
   const currentSection = VENDOR_NAV.find(item =>

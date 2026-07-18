@@ -23,13 +23,24 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Redirect to /login on 401
+// A real 401 means the token is genuinely invalid/expired — that's still a
+// hard logout. But `window.location.href` was a full page reload, which blew
+// away the entire SPA (including any unrelated unsaved form the user had open
+// in another part of the app) even though a client-side redirect would do.
+// authStore registers a handler here at startup so this module doesn't have
+// to import authStore directly (that would be a circular import: authStore
+// already imports this file to make its API calls).
+let onUnauthorized: (() => void) | null = null;
+export const registerUnauthorizedHandler = (handler: () => void): void => {
+  onUnauthorized = handler;
+};
+
 api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
       localStorage.removeItem('token');
-      window.location.href = '/login';
+      onUnauthorized?.();
     }
     return Promise.reject(err);
   }

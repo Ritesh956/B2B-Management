@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { prisma } from '../config/prisma';
 import { AuthRequest } from '../middlewares/authenticate';
 import { ContractStatus, Role } from '@prisma/client';
-import { buildLocalFileUrl } from '../config/s3';
+import { buildLocalFileUrl } from '../config/storage';
 
 export const createContract = async (req: AuthRequest, res: Response): Promise<void> => {
   try {

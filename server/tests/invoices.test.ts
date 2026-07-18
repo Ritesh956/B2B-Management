@@ -18,14 +18,16 @@ vi.mock('../src/config/prisma', () => ({
     invoice: {
       create: vi.fn(),
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
       update: vi.fn(),
       findMany: vi.fn(),
       updateMany: vi.fn(),
     },
-    purchaseOrder: { findUnique: vi.fn() },
-    user: { findUnique: vi.fn() },
+    purchaseOrder: { findUnique: vi.fn(), update: vi.fn() },
+    user: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn() },
     auditLog: { create: vi.fn() },
     $queryRaw: vi.fn().mockResolvedValue([]),
+    $transaction: vi.fn((arg: any) => Promise.all(arg)),
   },
 }));
 

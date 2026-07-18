@@ -39,6 +39,7 @@ export default function VendorProfilePage() {
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [isSavingPassword, setIsSavingPassword] = useState(false);
 
@@ -94,12 +95,17 @@ export default function VendorProfilePage() {
       setPasswordError('Passwords do not match');
       return;
     }
+    if (!currentPassword) {
+      setPasswordError('Enter your current password to set a new one');
+      return;
+    }
 
     try {
       setIsSavingPassword(true);
-      await api.patch('/auth/me', { password });
+      await api.patch('/auth/me', { password, currentPassword });
       setPassword('');
       setConfirmPassword('');
+      setCurrentPassword('');
       toast.success('Password updated successfully');
     } catch (err) {
       setPasswordError(getErrorMessage(err, 'Failed to update password'));
@@ -231,6 +237,18 @@ export default function VendorProfilePage() {
               className="input-base"
             />
           </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 7 }}>
+              Current Password
+            </label>
+            <input
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              placeholder="Required to set a new password"
+              className="input-base"
+            />
+          </div>
         </div>
 
         {passwordError && <p style={{ fontSize: 11.5, color: '#f87171', margin: 0 }}>{passwordError}</p>}
@@ -263,7 +281,7 @@ export default function VendorProfilePage() {
             border: '1px solid var(--border-dim)', background: 'var(--bg-hover)',
             cursor: 'pointer', transition: 'background 0.15s',
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
+          onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-card)')}
           onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--bg-hover)')}
         >
           <div>

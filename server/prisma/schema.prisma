@@ -51,6 +51,10 @@ enum InvoiceStatus {
 enum AuthTokenPurpose {
   PASSWORD_RESET
   INVITE
+  // 2FA login codes. Previously kept in an in-memory Map, which Render's
+  // free-tier sleep/restart wiped mid-login — the OTP a user was emailed
+  // no longer existed by the time they typed it in.
+  OTP_LOGIN
 }
 
 model User {
@@ -112,6 +116,7 @@ model Vendor {
   invoices       Invoice[]
 
   @@index([email])
+  @@index([status])
 }
 
 model Contract {
@@ -127,6 +132,8 @@ model Contract {
   deletedAt DateTime?
 
   @@index([vendorId])
+  @@index([status, endDate])
+  @@index([endDate])
 }
 
 model PurchaseOrder {
@@ -148,6 +155,8 @@ model PurchaseOrder {
 
   @@index([vendorId])
   @@index([createdById])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model Invoice {
@@ -165,6 +174,8 @@ model Invoice {
 
   @@index([poId])
   @@index([vendorId])
+  @@index([status])
+  @@index([submittedAt])
 }
 
 model AuditLog {
@@ -179,6 +190,7 @@ model AuditLog {
 
   @@index([userId])
   @@index([entity, entityId])
+  @@index([createdAt])
 }
 
 model Notification {
@@ -188,6 +200,12 @@ model Notification {
   message   String
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
+  // Optional deep-link target so the client can navigate straight to the
+  // record a notification is about, instead of just showing inert text.
+  entity    String?
+  entityId  String?
 
   @@index([userId])
+  @@index([userId, read])
+  @@index([userId, createdAt])
 }

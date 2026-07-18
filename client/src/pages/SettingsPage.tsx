@@ -21,6 +21,7 @@ export default function SettingsPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
   const [preferences, setPreferences] = useState<AccountNotificationPreferences>(defaultPreferences);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -40,6 +41,10 @@ export default function SettingsPage() {
     setPreferences((current) => ({ ...current, [key]: !current[key] }));
   };
 
+  const changingEmail = user ? email.trim() !== user.email : false;
+  const changingPassword = password.trim().length > 0;
+  const needsCurrentPassword = changingEmail || changingPassword;
+
   const onSave = async () => {
     setMessage('');
     setError('');
@@ -49,17 +54,24 @@ export default function SettingsPage() {
       return;
     }
 
+    if (needsCurrentPassword && !currentPassword) {
+      setError('Enter your current password to change your email or password');
+      return;
+    }
+
     try {
       setSaving(true);
       await accountService.updateMe({
         name,
         email,
         password: password || undefined,
+        currentPassword: needsCurrentPassword ? currentPassword : undefined,
         notificationPreferences: preferences,
       });
       await hydrate();
       setPassword('');
       setConfirmPassword('');
+      setCurrentPassword('');
       setMessage('Settings saved successfully');
     } catch (err) {
       setError(getErrorMessage(err, 'Failed to save settings'));
@@ -131,6 +143,19 @@ export default function SettingsPage() {
             </label>
           </div>
 
+          {needsCurrentPassword && (
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '16px' }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Current Password</span>
+              <input
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                placeholder="Required to change your email or password"
+                className="input-base"
+              />
+            </label>
+          )}
+
           <div style={{ marginTop: '24px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
             <button onClick={onSave} disabled={saving} className="btn-primary" style={{ opacity: saving ? 0.6 : 1 }}>
               {saving ? 'Saving...' : 'Save Changes'}
@@ -143,6 +168,7 @@ export default function SettingsPage() {
                 setEmail(user.email);
                 setPassword('');
                 setConfirmPassword('');
+                setCurrentPassword('');
                 setPreferences({ ...defaultPreferences, ...(user.notificationPreferences ?? {}) });
                 setMessage('Reset to current profile values');
                 setError('');
@@ -177,7 +203,7 @@ export default function SettingsPage() {
                   border: '1px solid var(--border-dim)', background: 'var(--bg-hover)',
                   cursor: 'pointer', transition: 'background 0.15s',
                 }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-card)')}
                 onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--bg-hover)')}
               >
                 <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{item.label}</span>
@@ -213,7 +239,7 @@ export default function SettingsPage() {
                 border: '1px solid var(--border-dim)', background: 'var(--bg-hover)',
                 cursor: 'pointer', transition: 'background 0.15s',
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
+              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-card)')}
               onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--bg-hover)')}
             >
               <div>

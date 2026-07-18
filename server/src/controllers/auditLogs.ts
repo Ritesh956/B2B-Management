@@ -63,10 +63,26 @@ export const listAuditLogs = async (req: AuthRequest, res: Response): Promise<vo
           res.status(404).json({ error: 'Not found' });
           return;
         }
+      } else {
+        // Staff scoping mirrors what each role can actually open elsewhere:
+        // - Invoice detail pages are FINANCE(/ADMIN)-only, so MANAGER and
+        //   PROCUREMENT don't get invoice history either.
+        // - PROCUREMENT can only open their own POs (getPOById), so their PO
+        //   audit access is limited to POs they created.
+        // Without this, the audit trail leaked history for records the role
+        // couldn't view directly.
+        if (entity === 'Invoice' && req.user.role !== Role.FINANCE) {
+          res.status(403).json({ error: 'Not authorized to view invoice history' });
+          return;
+        }
+        if (entity === 'PurchaseOrder' && req.user.role === Role.PROCUREMENT) {
+          const po = await prisma.purchaseOrder.findUnique({ where: { id: entityId }, select: { createdById: true } });
+          if (!po || po.createdById !== req.user.id) {
+            res.status(404).json({ error: 'Not found' });
+            return;
+          }
+        }
       }
-      // FINANCE/PROCUREMENT/MANAGER already have unrestricted view access to
-      // PurchaseOrder/Invoice/Vendor detail pages elsewhere in the app, so no
-      // further ownership check is needed for those roles.
     }
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);

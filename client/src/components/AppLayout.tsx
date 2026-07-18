@@ -6,6 +6,7 @@ import GlobalSearch from './GlobalSearch';
 import HealthIndicator from './HealthIndicator';
 import ErrorBoundary from './ErrorBoundary';
 import ThemeToggle from './ThemeToggle';
+import { useSocket } from '../hooks/useSocket';
 
 const ROLE_BADGE: Record<string, string> = {
   ADMIN:       'badge badge-admin',
@@ -69,6 +70,7 @@ export default function AppLayout() {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
+  useSocket();
 
   const handleLogout = () => { logout(); navigate('/login'); };
   const initials = user?.name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) ?? '?';

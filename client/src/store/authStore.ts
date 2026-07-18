@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { isAxiosError } from 'axios';
-import api from '../services/api';
+import api, { registerUnauthorizedHandler } from '../services/api';
 
 // CHANGED: Use 'export enum' instead of 'type' so it exists at runtime
 export enum Role {
@@ -116,3 +116,10 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 }));
+
+// A genuine 401 from any API call (token expired/invalid) clears the session
+// client-side — ProtectedRoute then renders <Navigate to="/login"> on the
+// next render, same as a normal logout, without a jarring full-page reload.
+registerUnauthorizedHandler(() => {
+  useAuthStore.setState({ user: null, token: null });
+});

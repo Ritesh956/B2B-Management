@@ -6,15 +6,18 @@ import { Role, AuthTokenPurpose } from '@prisma/client';
 import { AuthRequest } from '../middlewares/authenticate.js';
 import { enqueueEmail } from '../queues/index.js';
 import { prisma } from '../config/prisma';
-
-const otpStore = new Map<string, string>();
-const redisClient = {
-  setEx: async (key: string, _ttl: number, value: string) => { otpStore.set(key, value); },
-  get: async (key: string) => otpStore.get(key) ?? null,
-  del: async (key: string) => { otpStore.delete(key); },
-};
+import { env } from '../config/env';
 
 const RESET_TOKEN_TTL_MS = 30 * 60 * 1000; // 30 minutes
+const OTP_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const MIN_PASSWORD_LENGTH = 8;
+
+// 2FA login codes are persisted to AuthToken (purpose OTP_LOGIN) rather than
+// an in-memory Map — Render's free tier sleeps/restarts between "login" and
+// "enter the code", which silently wiped a Map-based OTP mid-login. The
+// token column is globally unique, so the stored value is namespaced by
+// user id; the raw 6-digit code alone is never a DB key.
+const otpTokenValue = (userId: string, otp: string) => `otp:${userId}:${otp}`;
 // Falls back to the deployed client's actual domain rather than localhost —
 // a reset/invite link built from localhost is dead on arrival for every
 // real user, which is exactly what was happening before this fell back
@@ -35,6 +38,12 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
     if (!name || !email || !password || !role) {
       res.status(400).json({ error: 'name, email, password, and role are required' });
+      return;
+    }
+
+    // Client-side zod already enforces this, but the API must not rely on it.
+    if (typeof password !== 'string' || password.length < MIN_PASSWORD_LENGTH) {
+      res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` });
       return;
     }
 
@@ -137,8 +146,23 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
 
     if (user.isTwoFactorEnabled) {
-      const otp = Math.floor(100000 + Math.random() * 900000).toString(); // 6 digits
-      await redisClient.setEx(`otp:${user.id}`, 300, otp);
+      // crypto.randomInt over Math.random: OTPs are a security credential.
+      const otp = crypto.randomInt(100000, 1000000).toString(); // 6 digits
+
+      // Any previous outstanding code for this user is dead the moment a new
+      // login attempt starts — single active OTP at a time.
+      await prisma.authToken.updateMany({
+        where: { userId: user.id, purpose: AuthTokenPurpose.OTP_LOGIN, usedAt: null },
+        data: { usedAt: new Date() },
+      });
+      await prisma.authToken.create({
+        data: {
+          token: otpTokenValue(user.id, otp),
+          userId: user.id,
+          purpose: AuthTokenPurpose.OTP_LOGIN,
+          expiresAt: new Date(Date.now() + OTP_TTL_MS),
+        },
+      });
 
       await enqueueEmail({
         to: user.email,
@@ -146,10 +170,9 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         html: `<p>Your One-Time Password is: <strong>${otp}</strong></p><p>It is valid for 5 minutes.</p>`,
       });
 
-      const secret = process.env.JWT_SECRET || 'secret';
       const tempToken = jwt.sign(
         { userId: user.id, is2faPending: true },
-        secret,
+        env.JWT_SECRET,
         { expiresIn: '5m' }
       );
 
@@ -162,10 +185,9 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       data: { lastLogin: new Date() },
     });
 
-    const secret = process.env.JWT_SECRET || 'secret';
     const token = jwt.sign(
       { userId: user.id, role: user.role },
-      secret,
+      env.JWT_SECRET,
       { expiresIn: '7d' }
     );
 
@@ -193,22 +215,18 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    const secret = process.env.JWT_SECRET || 'secret';
-    const decoded = jwt.verify(tempToken, secret) as { userId: string; is2faPending?: boolean };
+    const decoded = jwt.verify(tempToken, env.JWT_SECRET) as { userId: string; is2faPending?: boolean };
 
     if (!decoded.is2faPending) {
       res.status(400).json({ error: 'Invalid token type for OTP verification' });
       return;
     }
 
-    const storedOtp = await redisClient.get(`otp:${decoded.userId}`);
-    if (!storedOtp) {
+    const entry = await prisma.authToken.findUnique({
+      where: { token: otpTokenValue(decoded.userId, String(otp).trim()) },
+    });
+    if (!entry || entry.purpose !== AuthTokenPurpose.OTP_LOGIN || entry.usedAt || entry.expiresAt < new Date()) {
       res.status(400).json({ error: 'OTP expired or invalid' });
-      return;
-    }
-
-    if (storedOtp !== otp) {
-      res.status(400).json({ error: 'Invalid OTP' });
       return;
     }
 
@@ -218,16 +236,14 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    await redisClient.del(`otp:${decoded.userId}`);
-
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { lastLogin: new Date() },
-    });
+    await prisma.$transaction([
+      prisma.authToken.update({ where: { token: entry.token }, data: { usedAt: new Date() } }),
+      prisma.user.update({ where: { id: user.id }, data: { lastLogin: new Date() } }),
+    ]);
 
     const token = jwt.sign(
       { userId: user.id, role: user.role },
-      secret,
+      env.JWT_SECRET,
       { expiresIn: '7d' }
     );
 
@@ -248,6 +264,19 @@ export const toggle2fa = async (req: AuthRequest, res: Response): Promise<void> 
 
     const { isTwoFactorEnabled } = req.body as { isTwoFactorEnabled: boolean };
 
+    if (typeof isTwoFactorEnabled !== 'boolean') {
+      res.status(400).json({ error: 'isTwoFactorEnabled must be a boolean' });
+      return;
+    }
+
+    // 2FA delivers its code over email. Enabling it while email delivery is
+    // not configured would lock the user out of their own account at the
+    // very next login — the OTP would be "sent" into the void.
+    if (isTwoFactorEnabled && !env.SMTP_HOST) {
+      res.status(400).json({ error: 'Two-factor authentication is unavailable: email delivery is not configured on this server' });
+      return;
+    }
+
     const updatedUser = await prisma.user.update({
       where: { id: req.user.id },
       data: { isTwoFactorEnabled },
@@ -257,6 +286,15 @@ export const toggle2fa = async (req: AuthRequest, res: Response): Promise<void> 
         email: true,
         role: true,
         isTwoFactorEnabled: true,
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user.id,
+        action: isTwoFactorEnabled ? 'ENABLE_2FA' : 'DISABLE_2FA',
+        entity: 'User',
+        entityId: req.user.id,
       },
     });
 
@@ -309,16 +347,17 @@ export const updateMe = async (req: AuthRequest, res: Response): Promise<void> =
       return;
     }
 
-    const { name, email, password, notificationPreferences } = req.body as {
+    const { name, email, password, currentPassword, notificationPreferences } = req.body as {
       name?: string;
       email?: string;
       password?: string;
+      currentPassword?: string;
       notificationPreferences?: Record<string, boolean>;
     };
 
     const currentUser = await prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { id: true, email: true, role: true },
+      select: { id: true, email: true, role: true, password: true },
     });
 
     if (!currentUser) {
@@ -326,8 +365,36 @@ export const updateMe = async (req: AuthRequest, res: Response): Promise<void> =
       return;
     }
 
-    if (email && email !== currentUser.email) {
-      const existing = await prisma.user.findUnique({ where: { email } });
+    const wantsPasswordChange = typeof password === 'string' && password.trim().length > 0;
+    const wantsEmailChange = typeof email === 'string' && email.trim() && email.trim() !== currentUser.email;
+
+    // Changing the password or the login email is an account-takeover lever —
+    // a stolen session token alone must not be enough. Require the current
+    // password as re-authentication for those two changes specifically.
+    if (wantsPasswordChange || wantsEmailChange) {
+      if (!currentPassword) {
+        res.status(400).json({ error: 'Current password is required to change your password or email' });
+        return;
+      }
+      const match = await bcrypt.compare(currentPassword, currentUser.password);
+      if (!match) {
+        // 403, not 401: the session token itself is valid (the request got
+        // this far via `authenticate`) — only the re-auth credential is
+        // wrong. The client's global response interceptor treats any 401 as
+        // "session invalid" and force-logs-out; a 401 here would have booted
+        // the user to /login just for mistyping their current password.
+        res.status(403).json({ error: 'Current password is incorrect' });
+        return;
+      }
+    }
+
+    if (wantsPasswordChange && password!.trim().length < MIN_PASSWORD_LENGTH) {
+      res.status(400).json({ error: `Password must be at least ${MIN_PASSWORD_LENGTH} characters` });
+      return;
+    }
+
+    if (wantsEmailChange) {
+      const existing = await prisma.user.findUnique({ where: { email: email!.trim() } });
       if (existing && existing.id !== currentUser.id) {
         res.status(409).json({ error: 'Email already in use' });
         return;
@@ -337,8 +404,8 @@ export const updateMe = async (req: AuthRequest, res: Response): Promise<void> =
     const updateData: Record<string, unknown> = {};
     if (typeof name === 'string' && name.trim()) updateData.name = name.trim();
     if (typeof email === 'string' && email.trim()) updateData.email = email.trim();
-    if (typeof password === 'string' && password.trim()) {
-      updateData.password = await bcrypt.hash(password, 10);
+    if (wantsPasswordChange) {
+      updateData.password = await bcrypt.hash(password!.trim(), 10);
     }
     if (notificationPreferences && typeof notificationPreferences === 'object') {
       updateData.notificationPreferences = notificationPreferences;
@@ -474,6 +541,12 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
     await prisma.$transaction([
       prisma.user.update({ where: { id: entry.userId }, data: { password: hashed } }),
       prisma.authToken.update({ where: { token }, data: { usedAt: new Date() } }),
+      // Any other outstanding reset links for this user die with this one —
+      // an older email in an attacker's hands must not still work.
+      prisma.authToken.updateMany({
+        where: { userId: entry.userId, purpose: AuthTokenPurpose.PASSWORD_RESET, usedAt: null },
+        data: { usedAt: new Date() },
+      }),
     ]);
 
     res.status(200).json({ message: 'Password reset successfully' });

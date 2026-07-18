@@ -169,7 +169,7 @@ export default function InvoiceDetail() {
                 fontWeight: 600,
                 fontSize: '13px',
                 cursor: canApprove ? 'pointer' : 'not-allowed',
-                background: canApprove ? 'var(--accent-success)' : 'rgba(255,255,255,0.05)',
+                background: canApprove ? 'var(--accent-success)' : 'var(--bg-hover)',
                 color: canApprove ? '#fff' : 'var(--text-muted)',
                 transition: 'all 0.2s',
                 boxShadow: canApprove ? '0 4px 15px rgba(16,185,129,0.2)' : 'none'
@@ -189,7 +189,7 @@ export default function InvoiceDetail() {
                 fontWeight: 600,
                 fontSize: '13px',
                 cursor: canPay ? 'pointer' : 'not-allowed',
-                background: canPay ? 'var(--accent-secondary)' : 'rgba(255,255,255,0.05)',
+                background: canPay ? 'var(--accent-secondary)' : 'var(--bg-hover)',
                 color: canPay ? '#fff' : 'var(--text-muted)',
                 transition: 'all 0.2s',
                 boxShadow: canPay ? '0 4px 15px rgba(6,182,212,0.2)' : 'none'

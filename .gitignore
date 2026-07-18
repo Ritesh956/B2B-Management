@@ -4,6 +4,9 @@ dist/
 build/
 .env
 
+[User-uploaded files - real invoice/contract/KYC documents must never be committed]
+server/uploads/
+
 [Logs]
 logs
 *.log

@@ -3,11 +3,11 @@ import { InvoiceStatus, POStatus, Role } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { AuthRequest } from '../middlewares/authenticate';
 import { enqueueEmail } from '../queues';
-import { buildLocalFileUrl } from '../config/s3';
+import { buildLocalFileUrl } from '../config/storage';
 import { stringify } from 'csv-stringify/sync';
 import { notifyUser } from '../utils/notify';
 import { csvSafe } from '../utils/csvSafe';
-import { retryOnUniqueConflict } from '../utils/retryOnUniqueConflict';
+import { retryOnUniqueConflict, isUniqueConstraintConflict } from '../utils/retryOnUniqueConflict';
 
 const generateInvoiceNumber = async () => {
   const year = new Date().getFullYear();
@@ -45,7 +45,7 @@ export const submitInvoice = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    const { poId, amount } = req.body as { poId: string; amount: string | number };
+    const { poId, amount, invoiceNumber: providedNumber } = req.body as { poId: string; amount: string | number; invoiceNumber?: string };
     const file = req.file as Express.Multer.File | undefined;
 
     if (!poId || amount === undefined || amount === null) {
@@ -58,7 +58,19 @@ export const submitInvoice = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    const numericAmount = Number(amount);
+    // The vendor's own invoice reference (from their accounting system) used
+    // to be collected by the form and then silently thrown away in favor of
+    // an auto-generated number. Honor it when provided.
+    const vendorInvoiceNumber = typeof providedNumber === 'string' ? providedNumber.trim() : '';
+    if (vendorInvoiceNumber && !/^[A-Za-z0-9/_.\- ]{3,40}$/.test(vendorInvoiceNumber)) {
+      res.status(400).json({ error: 'Invoice number must be 3-40 characters (letters, numbers, spaces, - _ / .)' });
+      return;
+    }
+
+    // Round to 2dp up front — amounts are currently stored as floats, and an
+    // exact float equality against the PO total misclassified genuinely
+    // equal amounts as MISMATCHED. (Proper fix is a Decimal column.)
+    const numericAmount = Number(Number(amount).toFixed(2));
     if (Number.isNaN(numericAmount) || numericAmount <= 0) {
       res.status(400).json({ error: 'amount must be a positive number' });
       return;
@@ -94,42 +106,76 @@ export const submitInvoice = async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    const status = numericAmount === po.totalAmount ? InvoiceStatus.MATCHED : InvoiceStatus.MISMATCHED;
-
-    const invoice = await retryOnUniqueConflict(
-      async () => {
-        const invoiceNumber = await generateInvoiceNumber();
-        return prisma.invoice.create({
-          data: {
-            invoiceNumber,
-            poId: po.id,
-            vendorId: po.vendorId,
-            amount: numericAmount,
-            status,
-            fileUrl: buildLocalFileUrl(file.path),
-          },
-          include: {
-            po: {
-              select: {
-                id: true,
-                poNumber: true,
-                totalAmount: true,
-                status: true,
-                createdAt: true,
-              },
-            },
-            vendor: {
-              select: {
-                id: true,
-                companyName: true,
-                email: true,
-              },
-            },
-          },
-        });
+    // One live invoice per PO. Without this, a vendor could submit unlimited
+    // invoices against a single approved PO, each independently payable —
+    // there was no spend ceiling at all. A prior MISMATCHED invoice doesn't
+    // block resubmission (that's the vendor correcting their own mistake,
+    // and there is no invoice-rejection flow to clear it otherwise).
+    const activeInvoice = await prisma.invoice.findFirst({
+      where: {
+        poId: po.id,
+        status: { in: [InvoiceStatus.SUBMITTED, InvoiceStatus.MATCHED, InvoiceStatus.APPROVED, InvoiceStatus.PAID] },
       },
-      'invoiceNumber'
-    );
+      select: { invoiceNumber: true, status: true },
+    });
+    if (activeInvoice) {
+      res.status(409).json({ error: `This purchase order already has invoice ${activeInvoice.invoiceNumber} (${activeInvoice.status}). Only one active invoice is allowed per PO.` });
+      return;
+    }
+
+    // Tolerance-based match instead of raw float equality — float arithmetic
+    // was flagging genuinely equal amounts as MISMATCHED.
+    const status = Math.abs(numericAmount - po.totalAmount) < 0.005 ? InvoiceStatus.MATCHED : InvoiceStatus.MISMATCHED;
+
+    const invoiceInclude = {
+      po: {
+        select: {
+          id: true,
+          poNumber: true,
+          totalAmount: true,
+          status: true,
+          createdAt: true,
+        },
+      },
+      vendor: {
+        select: {
+          id: true,
+          companyName: true,
+          email: true,
+        },
+      },
+    } as const;
+
+    const createInvoice = (invoiceNumber: string) =>
+      prisma.invoice.create({
+        data: {
+          invoiceNumber,
+          poId: po.id,
+          vendorId: po.vendorId,
+          amount: numericAmount,
+          status,
+          fileUrl: buildLocalFileUrl(file.path),
+        },
+        include: invoiceInclude,
+      });
+
+    let invoice;
+    if (vendorInvoiceNumber) {
+      try {
+        invoice = await createInvoice(vendorInvoiceNumber);
+      } catch (err) {
+        if (isUniqueConstraintConflict(err, 'invoiceNumber')) {
+          res.status(409).json({ error: `Invoice number ${vendorInvoiceNumber} already exists. Please use a different one.` });
+          return;
+        }
+        throw err;
+      }
+    } else {
+      invoice = await retryOnUniqueConflict(
+        async () => createInvoice(await generateInvoiceNumber()),
+        'invoiceNumber'
+      );
+    }
 
     await prisma.auditLog.create({
       data: {
@@ -159,7 +205,7 @@ export const submitInvoice = async (req: AuthRequest, res: Response): Promise<vo
           html: `<p>Invoice <strong>${invoice.invoiceNumber}</strong> for PO <strong>${invoice.po.poNumber}</strong> was submitted and marked as <strong>${status}</strong>.</p>`,
         }),
         ...financeUsers.map((financeUser) =>
-          notifyUser(financeUser.id, `Invoice ${invoice.invoiceNumber} is ${status}`, 'INFO')
+          notifyUser(financeUser.id, `Invoice ${invoice.invoiceNumber} is ${status}`, 'INFO', { entity: 'Invoice', entityId: invoice.id })
         ),
       ]);
     }
@@ -193,7 +239,8 @@ export const listInvoices = async (req: AuthRequest, res: Response): Promise<voi
     const { status: statusFilter, vendorId, minAmount, maxAmount, fromDate, toDate, page = '1', limit = '10' } = req.query as Record<string, string>;
 
     const pageNumber = Math.max(1, parseInt(page, 10) || 1);
-    const limitNumber = Math.max(1, parseInt(limit, 10) || 10);
+    // Cap like listPOs does — an uncapped ?limit= pulled the whole table.
+    const limitNumber = Math.min(100, Math.max(1, parseInt(limit, 10) || 10));
     const skip = (pageNumber - 1) * limitNumber;
 
     // Support comma-separated multiple statuses
@@ -305,8 +352,11 @@ export const getInvoiceById = async (req: AuthRequest, res: Response): Promise<v
 
 export const approveInvoice = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    if (!req.user || req.user.role !== Role.FINANCE) {
-      res.status(403).json({ error: 'Only finance can approve invoices' });
+    // FINANCE or ADMIN — consistent with the PO chain, where ADMIN can act
+    // in place of an unavailable approver. (Previously the route said
+    // FINANCE-only while a dead branch below implied ADMIN was intended.)
+    if (!req.user || (req.user.role !== Role.FINANCE && req.user.role !== Role.ADMIN)) {
+      res.status(403).json({ error: 'Only finance or admin can approve invoices' });
       return;
     }
 
@@ -346,10 +396,6 @@ export const approveInvoice = async (req: AuthRequest, res: Response): Promise<v
 
     const reason = req.body.reason;
     if (existing.status === InvoiceStatus.MISMATCHED) {
-      if (req.user.role !== Role.FINANCE && req.user.role !== Role.ADMIN) {
-        res.status(403).json({ error: 'Only finance or admin can force-approve a mismatched invoice' });
-        return;
-      }
       if (!reason || typeof reason !== 'string' || reason.trim() === '') {
         res.status(400).json({ error: 'A reason is required to force-approve a mismatched invoice' });
         return;
@@ -399,8 +445,8 @@ export const approveInvoice = async (req: AuthRequest, res: Response): Promise<v
 
 export const payInvoice = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    if (!req.user || req.user.role !== Role.FINANCE) {
-      res.status(403).json({ error: 'Only finance can mark invoice as paid' });
+    if (!req.user || (req.user.role !== Role.FINANCE && req.user.role !== Role.ADMIN)) {
+      res.status(403).json({ error: 'Only finance or admin can mark invoice as paid' });
       return;
     }
 
@@ -438,29 +484,39 @@ export const payInvoice = async (req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
-    const invoice = await prisma.invoice.update({
-      where: { id },
-      data: { status: InvoiceStatus.PAID },
-      include: {
-        po: {
-          select: {
-            id: true,
-            poNumber: true,
-            totalAmount: true,
-            status: true,
-            createdAt: true,
-            items: true,
+    // Payment completes the PO lifecycle: the PO moves to CLOSED in the same
+    // transaction. CLOSED was a defined-but-unreachable status before — a
+    // fully paid PO stayed APPROVED forever, which also meant it kept
+    // accepting new invoice submissions.
+    const [, invoice] = await prisma.$transaction([
+      prisma.purchaseOrder.update({
+        where: { id: existing.po.id },
+        data: { status: POStatus.CLOSED },
+      }),
+      prisma.invoice.update({
+        where: { id },
+        data: { status: InvoiceStatus.PAID },
+        include: {
+          po: {
+            select: {
+              id: true,
+              poNumber: true,
+              totalAmount: true,
+              status: true,
+              createdAt: true,
+              items: true,
+            },
+          },
+          vendor: {
+            select: {
+              id: true,
+              companyName: true,
+              email: true,
+            },
           },
         },
-        vendor: {
-          select: {
-            id: true,
-            companyName: true,
-            email: true,
-          },
-        },
-      },
-    });
+      }),
+    ]);
 
     await prisma.auditLog.create({
       data: {
@@ -468,7 +524,7 @@ export const payInvoice = async (req: AuthRequest, res: Response): Promise<void>
         action: 'PAY',
         entity: 'Invoice',
         entityId: invoice.id,
-        metadata: { invoiceNumber: invoice.invoiceNumber },
+        metadata: { invoiceNumber: invoice.invoiceNumber, poClosed: existing.po.id },
       },
     });
 
@@ -482,7 +538,7 @@ export const payInvoice = async (req: AuthRequest, res: Response): Promise<void>
 
     if (vendorUser) {
       await Promise.allSettled([
-        notifyUser(vendorUser.id, `Invoice ${invoice.invoiceNumber} has been marked as PAID`, 'INFO'),
+        notifyUser(vendorUser.id, `Invoice ${invoice.invoiceNumber} has been marked as PAID`, 'INFO', { entity: 'Invoice', entityId: invoice.id }),
         enqueueEmail({
           to: invoice.vendor.email,
           subject: `Invoice ${invoice.invoiceNumber} paid`,
@@ -549,8 +605,8 @@ export const exportInvoices = async (req: AuthRequest, res: Response): Promise<v
 
 export const bulkApproveInvoices = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    if (!req.user || req.user.role !== Role.FINANCE) {
-      res.status(403).json({ error: 'Only finance can bulk approve invoices' });
+    if (!req.user || (req.user.role !== Role.FINANCE && req.user.role !== Role.ADMIN)) {
+      res.status(403).json({ error: 'Only finance or admin can bulk approve invoices' });
       return;
     }
     const { ids } = req.body as { ids: string[] };

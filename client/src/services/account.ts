@@ -47,6 +47,10 @@ export const accountService = {
     name: string;
     email: string;
     password?: string;
+    // Required by the server whenever password or email is being changed —
+    // re-authentication so a stolen session token alone can't take over the
+    // account by changing its login credentials.
+    currentPassword?: string;
     notificationPreferences: AccountNotificationPreferences;
   }) => api.patch('/auth/me', payload).then((r) => parseApiResponse(accountResponseSchema, r.data)),
 };

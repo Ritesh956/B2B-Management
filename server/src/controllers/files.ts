@@ -5,6 +5,7 @@ import path from 'path';
 import { Role } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { AuthRequest } from '../middlewares/authenticate';
+import { env } from '../config/env';
 
 const uploadsRoot = path.join(process.cwd(), 'uploads');
 const STAFF_ROLES: Role[] = [Role.ADMIN, Role.PROCUREMENT, Role.MANAGER, Role.FINANCE];
@@ -27,8 +28,7 @@ const resolveUser = async (req: AuthRequest): Promise<{ id: string; role: Role }
   if (!token) return null;
 
   try {
-    const secret = process.env.JWT_SECRET || 'secret';
-    const decoded = jwt.verify(token, secret) as { userId: string; is2faPending?: boolean };
+    const decoded = jwt.verify(token, env.JWT_SECRET) as { userId: string; is2faPending?: boolean };
     if (decoded.is2faPending) return null;
 
     const user = await prisma.user.findUnique({

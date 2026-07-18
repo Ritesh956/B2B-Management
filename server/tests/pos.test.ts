@@ -24,10 +24,11 @@ vi.mock('../src/config/prisma', () => ({
       findUnique: vi.fn(),
       findFirst: vi.fn(),
       update: vi.fn(),
+      updateMany: vi.fn(),
     },
     vendor: { findUnique: vi.fn() },
     user: { findFirst: vi.fn() },
-    auditLog: { create: vi.fn() },
+    auditLog: { create: vi.fn(), findMany: vi.fn().mockResolvedValue([]) },
     $queryRaw: vi.fn().mockResolvedValue([]),
   },
 }));
@@ -66,14 +67,20 @@ describe('POs API', () => {
       createdBy: { id: 'creator1', name: 'Creator', email: 'creator@test.com', role: 'PROCUREMENT' },
     };
 
+    // approvePO now writes via a guarded updateMany (concurrency check) and
+    // re-reads the row — the mock mirrors that with a tiny stateful PO.
+    const wireStatefulPO = (initial: any) => {
+      let poState = initial;
+      (prisma.purchaseOrder.findUnique as any).mockImplementation(() => Promise.resolve(poState));
+      (prisma.purchaseOrder.updateMany as any).mockImplementation(({ data }: any) => {
+        poState = { ...poState, ...data };
+        return Promise.resolve({ count: 1 });
+      });
+    };
+
     it('does not crash when the request is sent with no body (regression)', async () => {
       mockUser = { id: 'mgr1', role: 'MANAGER', email: 'mgr@test.com' };
-      (prisma.purchaseOrder.findUnique as any).mockResolvedValue(basePO);
-      (prisma.purchaseOrder.update as any).mockResolvedValue({
-        ...basePO,
-        currentApproverIndex: 1,
-        approvalChain: { ...chain600k, steps: [{ ...chain600k.steps[0], status: 'APPROVED', approvedById: 'mgr1' }, chain600k.steps[1], chain600k.steps[2]] },
-      });
+      wireStatefulPO(basePO);
 
       // No .send() call at all — reproduces the client's real request when no
       // reason is supplied, which previously crashed with "Cannot destructure
@@ -86,8 +93,7 @@ describe('POs API', () => {
 
     it('lets ADMIN approve on behalf of the current approver with a reason, and records the override', async () => {
       mockUser = { id: 'admin1', role: 'ADMIN', email: 'admin@test.com' };
-      (prisma.purchaseOrder.findUnique as any).mockResolvedValue(basePO);
-      (prisma.purchaseOrder.update as any).mockImplementation(({ data }: any) => Promise.resolve({ ...basePO, ...data }));
+      wireStatefulPO(basePO);
 
       const res = await request(app)
         .post('/api/v1/pos/po1/approve')
@@ -104,6 +110,17 @@ describe('POs API', () => {
       expect(auditMetadata.overriddenRole).toBe('MANAGER');
     });
 
+    it('returns 409 when the PO state changed between read and write (concurrent approval)', async () => {
+      mockUser = { id: 'mgr1', role: 'MANAGER', email: 'mgr@test.com' };
+      (prisma.purchaseOrder.findUnique as any).mockResolvedValue(basePO);
+      // Guard finds nothing to update — someone else advanced the chain first.
+      (prisma.purchaseOrder.updateMany as any).mockResolvedValue({ count: 0 });
+
+      const res = await request(app).post('/api/v1/pos/po1/approve');
+
+      expect(res.status).toBe(409);
+    });
+
     it('rejects an ADMIN override with no reason', async () => {
       mockUser = { id: 'admin1', role: 'ADMIN', email: 'admin@test.com' };
       (prisma.purchaseOrder.findUnique as any).mockResolvedValue(basePO);
@@ -112,6 +129,7 @@ describe('POs API', () => {
 
       expect(res.status).toBe(400);
       expect(prisma.purchaseOrder.update).not.toHaveBeenCalled();
+      expect(prisma.purchaseOrder.updateMany).not.toHaveBeenCalled();
     });
   });
 

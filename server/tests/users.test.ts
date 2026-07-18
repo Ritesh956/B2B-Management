@@ -19,7 +19,7 @@ vi.mock('../src/middlewares/authenticate', async (importOriginal) => {
 // Stateful fake for the AuthToken table, mirroring auth.test.ts's pattern -
 // hoisted so the vi.mock factory below (which is itself hoisted above all
 // other top-level code) can reference it without a TDZ error.
-const { mockAuthTokenCreate, mockAuthTokenFindUnique, mockAuthTokenUpdate, resetAuthTokenRows } = vi.hoisted(() => {
+const { mockAuthTokenCreate, mockAuthTokenFindUnique, mockAuthTokenUpdate, mockAuthTokenUpdateMany, resetAuthTokenRows } = vi.hoisted(() => {
   let rows: any[] = [];
   return {
     mockAuthTokenCreate: vi.fn(({ data }: any) => {
@@ -35,6 +35,21 @@ const { mockAuthTokenCreate, mockAuthTokenFindUnique, mockAuthTokenUpdate, reset
       if (row) Object.assign(row, data);
       return Promise.resolve(row);
     }),
+    // Bulk-invalidation used by issueInviteToken (kill previous invites).
+    mockAuthTokenUpdateMany: vi.fn(({ where, data }: any) => {
+      let count = 0;
+      rows.forEach((r) => {
+        const matches =
+          (where.userId === undefined || r.userId === where.userId) &&
+          (where.purpose === undefined || r.purpose === where.purpose) &&
+          (!('usedAt' in where) || r.usedAt === where.usedAt);
+        if (matches) {
+          Object.assign(r, data);
+          count += 1;
+        }
+      });
+      return Promise.resolve({ count });
+    }),
     resetAuthTokenRows: () => { rows = []; },
   };
 });
@@ -45,11 +60,16 @@ vi.mock('../src/config/prisma', () => ({
       findUnique: vi.fn(),
       update: vi.fn(),
       create: vi.fn(),
+      count: vi.fn().mockResolvedValue(1),
+    },
+    auditLog: {
+      create: vi.fn(),
     },
     authToken: {
       create: mockAuthTokenCreate,
       findUnique: mockAuthTokenFindUnique,
       update: mockAuthTokenUpdate,
+      updateMany: mockAuthTokenUpdateMany,
     },
     $transaction: vi.fn((arg: any) => Promise.all(arg)),
   },

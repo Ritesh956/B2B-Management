@@ -6,6 +6,17 @@ import { prisma } from '../src/config/prisma';
 import { enqueueEmail } from '../src/queues';
 import bcrypt from 'bcrypt';
 
+vi.mock('../src/middlewares/authenticate', async (importOriginal) => {
+  const actual: any = await importOriginal();
+  return {
+    ...actual,
+    authenticate: (req: any, _res: any, next: any) => {
+      req.user = { id: 'u1', role: 'PROCUREMENT' };
+      next();
+    },
+  };
+});
+
 // vi.mock factories are hoisted above all other top-level code (including
 // `const` declarations that appear earlier in the file), so anything the
 // factory below needs must be created through vi.hoisted() rather than a
@@ -16,15 +27,18 @@ import bcrypt from 'bcrypt';
 // asserting each mocked call in isolation.
 const {
   mockTxUserCreate,
+  mockTxUserUpdate,
   mockTxVendorCreate,
   mockAuthTokenCreate,
   mockAuthTokenFindUnique,
   mockAuthTokenUpdate,
+  mockAuthTokenUpdateMany,
   resetAuthTokenRows,
 } = vi.hoisted(() => {
   let rows: any[] = [];
   return {
     mockTxUserCreate: vi.fn(),
+    mockTxUserUpdate: vi.fn(),
     mockTxVendorCreate: vi.fn(),
     mockAuthTokenCreate: vi.fn(({ data }: any) => {
       const row = { ...data, usedAt: null };
@@ -38,6 +52,22 @@ const {
       const row = rows.find((r) => r.token === where.token);
       if (row) Object.assign(row, data);
       return Promise.resolve(row);
+    }),
+    // Bulk-invalidation used by resetPassword (kill sibling reset links) and
+    // login's OTP issuance (kill outstanding codes).
+    mockAuthTokenUpdateMany: vi.fn(({ where, data }: any) => {
+      let count = 0;
+      rows.forEach((r) => {
+        const matches =
+          (where.userId === undefined || r.userId === where.userId) &&
+          (where.purpose === undefined || r.purpose === where.purpose) &&
+          (!('usedAt' in where) || r.usedAt === where.usedAt);
+        if (matches) {
+          Object.assign(r, data);
+          count += 1;
+        }
+      });
+      return Promise.resolve({ count });
     }),
     resetAuthTokenRows: () => { rows = []; },
   };
@@ -60,9 +90,10 @@ vi.mock('../src/config/prisma', () => ({
       create: mockAuthTokenCreate,
       findUnique: mockAuthTokenFindUnique,
       update: mockAuthTokenUpdate,
+      updateMany: mockAuthTokenUpdateMany,
     },
     $transaction: vi.fn((arg: any) => (Array.isArray(arg) ? Promise.all(arg) : arg({
-      user: { create: mockTxUserCreate },
+      user: { create: mockTxUserCreate, update: mockTxUserUpdate },
       vendor: { create: mockTxVendorCreate },
     }))),
   },
@@ -215,6 +246,42 @@ describe('Auth API', () => {
       const res = await request(app).post(`/api/v1/auth/reset-password/${token}`).send({ password: 'short' });
       expect(res.status).toBe(400);
       expect(prisma.user.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('PATCH /api/v1/auth/me — re-authentication for password/email changes', () => {
+    const currentUser = { id: 'u1', email: 'proc@test.com', role: 'PROCUREMENT' };
+
+    it('requires currentPassword when changing password', async () => {
+      (prisma.user.findUnique as any).mockResolvedValue({ ...currentUser, password: await bcrypt.hash('Proc123', 10) });
+      const res = await request(app).patch('/api/v1/auth/me').send({ password: 'newPassword1' });
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/current password is required/i);
+      expect(mockTxUserUpdate).not.toHaveBeenCalled();
+    });
+
+    it('rejects an incorrect currentPassword with 403, not 401 — a 401 here would trip the client\'s global interceptor into force-logging the user out over a mistyped password', async () => {
+      (prisma.user.findUnique as any).mockResolvedValue({ ...currentUser, password: await bcrypt.hash('Proc123', 10) });
+      const res = await request(app).patch('/api/v1/auth/me').send({ password: 'newPassword1', currentPassword: 'wrongPassword' });
+      expect(res.status).toBe(403);
+      expect(mockTxUserUpdate).not.toHaveBeenCalled();
+    });
+
+    it('accepts a correct currentPassword and updates the password', async () => {
+      (prisma.user.findUnique as any).mockResolvedValue({ ...currentUser, password: await bcrypt.hash('Proc123', 10) });
+      mockTxUserUpdate.mockResolvedValue({ id: 'u1', name: 'Proc', email: 'proc@test.com', role: 'PROCUREMENT', notificationPreferences: {}, isTwoFactorEnabled: false, createdAt: new Date() });
+
+      const res = await request(app).patch('/api/v1/auth/me').send({ password: 'newPassword1', currentPassword: 'Proc123' });
+      expect(res.status).toBe(200);
+      expect(mockTxUserUpdate).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'u1' } }));
+    });
+
+    it('does not require currentPassword when only updating notification preferences', async () => {
+      (prisma.user.findUnique as any).mockResolvedValue({ ...currentUser, password: await bcrypt.hash('Proc123', 10) });
+      mockTxUserUpdate.mockResolvedValue({ id: 'u1', name: 'Proc', email: 'proc@test.com', role: 'PROCUREMENT', notificationPreferences: { emailEnabled: false }, isTwoFactorEnabled: false, createdAt: new Date() });
+
+      const res = await request(app).patch('/api/v1/auth/me').send({ notificationPreferences: { emailEnabled: false } });
+      expect(res.status).toBe(200);
     });
   });
 });
