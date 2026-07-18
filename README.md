@@ -6,7 +6,7 @@ VendorHub is a robust, scalable B2B vendor management platform designed for comp
 - **Role-Based Access Control**: Strict permissions model via JWT and robust backend authorization.
 - **Vendor Portal**: An isolated, secure dashboard for vendors to manage their profile, POs, and invoices.
 - **Purchase & Invoices**: Full PO matching, soft-delete audits, and bulk approval actions for finance teams.
-- **Real-Time Notifications**: Instant updates to users via WebSocket (Socket.io) for critical status changes.
+- **Notifications**: In-app notification bell backed by polling; the server's Socket.io layer (JWT-authenticated, per-user rooms) is built for real-time push but not yet wired up client-side.
 - **Performance & Reports**: Graphical breakdowns using Recharts and headless browser PDF exports (Puppeteer).
 - **Hardened API**: Rate-limited, versioned (`/api/v1`), and validated environment startup logic.
 - **Resilient Infrastructure**: Soft deletes via Prisma, automated background queues (Bull/Redis), and scheduled cron jobs.
@@ -14,7 +14,7 @@ VendorHub is a robust, scalable B2B vendor management platform designed for comp
 ## Tech Stack
 | Layer           | Technologies                                                                 |
 |-----------------|------------------------------------------------------------------------------|
-| **Frontend**    | React, TypeScript, Tailwind CSS v4 (Class-based Dark Mode), Zustand, Recharts |
+| **Frontend**    | React, TypeScript, Zustand, Recharts; theming via CSS custom properties (`.light`/`.dark` class toggle), not Tailwind utility classes |
 | **Backend**     | Node.js, Express, Prisma ORM, Socket.io, Bull (Redis), Puppeteer, Zod         |
 | **Database**    | PostgreSQL 15, Redis 7                                                       |
 | **DevOps**      | Docker, Docker Compose, Nginx, GitHub Actions (CI)                            |
@@ -103,7 +103,11 @@ VendorHub is a robust, scalable B2B vendor management platform designed for comp
 | **MANAGER** | General oversight, analytics viewing, vendor scoring. |
 | **VENDOR** | Isolated portal access. View their POs/contracts, submit invoices, update profile. |
 
-## Deployment Instructions (Ubuntu VPS via Docker)
+## Deployment
+
+The live app deploys to managed platforms, not the VPS path below: **client** on Vercel (https://rit-vendor.vercel.app, `npx vercel --prod` from `client/`), **server** on Render via the Blueprint at `render.yaml` (https://vendorhub-server.onrender.com, auto-deploys on push to `main`). See `CLAUDE.md` for the full deployment/architecture notes.
+
+### Self-hosted alternative (Ubuntu VPS via Docker)
 1. Provision a Ubuntu VPS and install Docker & Docker Compose.
 2. Clone the repository to your server.
 3. Add a `.env.production` file inside the `server/` directory with production secrets.

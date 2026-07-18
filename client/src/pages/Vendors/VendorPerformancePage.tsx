@@ -11,18 +11,11 @@ type SortKey = 'companyName' | 'performanceScore' | 'totalPOs' | 'mismatchRate';
 // seed data). Thresholds below are the 5-point equivalents of "under 40%" / "under 70%".
 const MAX_SCORE = 5;
 
-const scoreTone = (score: number | null): string => {
+const scoreTier = (score: number | null): { bar: string; badgeColor: string; badgeBg: string; badgeBorder: string } => {
   const value = score ?? 0;
-  if (value < 2) return 'from-rose-500 to-red-500';
-  if (value <= 3.5) return 'from-amber-400 to-orange-400';
-  return 'from-emerald-400 to-cyan-400';
-};
-
-const scoreLabelTone = (score: number | null): string => {
-  const value = score ?? 0;
-  if (value < 2) return 'text-rose-200 border-rose-500/30 bg-rose-500/10';
-  if (value <= 3.5) return 'text-amber-200 border-amber-500/30 bg-amber-500/10';
-  return 'text-emerald-200 border-emerald-500/30 bg-emerald-500/10';
+  if (value < 2) return { bar: 'linear-gradient(to right, #f43f5e, #ef4444)', badgeColor: '#fda4af', badgeBg: 'rgba(244,63,94,0.1)', badgeBorder: 'rgba(244,63,94,0.3)' };
+  if (value <= 3.5) return { bar: 'linear-gradient(to right, #fbbf24, #f59e0b)', badgeColor: '#fcd34d', badgeBg: 'rgba(245,158,11,0.1)', badgeBorder: 'rgba(245,158,11,0.3)' };
+  return { bar: 'linear-gradient(to right, #34d399, #06b6d4)', badgeColor: '#6ee7b7', badgeBg: 'rgba(16,185,129,0.1)', badgeBorder: 'rgba(16,185,129,0.3)' };
 };
 
 const scoreBarWidth = (score: number): number => Math.max(0, Math.min(100, (score / MAX_SCORE) * 100));
@@ -124,22 +117,22 @@ export default function VendorPerformancePage() {
   };
 
   const scoreHeader = (label: string, key: SortKey) => (
-    <button
-      type="button"
+    <th
       onClick={() => toggleSort(key)}
-      className="inline-flex items-center gap-1 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 hover:text-slate-300"
+      style={{ cursor: 'pointer', userSelect: 'none' }}
     >
       {label}
-      <span className="text-[10px]">{sortKey === key ? (sortDirection === 'asc' ? '↑' : '↓') : '↕'}</span>
-    </button>
+      {sortKey === key ? (sortDirection === 'asc' ? ' ↑' : ' ↓') : ''}
+    </th>
   );
 
   const renderScoreCell = (vendor: VendorPerformanceRow) => {
     const score = vendor.performanceScore ?? 0;
+    const tier = scoreTier(vendor.performanceScore);
 
     if (editingId === vendor.id && isAdmin) {
       return (
-        <div className="flex items-center gap-2">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <input
             autoFocus
             type="number"
@@ -161,12 +154,14 @@ export default function VendorPerformancePage() {
                 cancelEditing();
               }
             }}
-            className="w-24 rounded-2xl border border-white/10 bg-[#0f172a] px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-400/20"
+            className="input-base"
+            style={{ width: 96 }}
           />
           <button
             onClick={() => void handleSaveScore(vendor.id)}
             disabled={savingId === vendor.id}
-            className="rounded-2xl border border-cyan-400/20 bg-cyan-500/15 px-3 py-2 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-500/25 disabled:cursor-not-allowed disabled:opacity-40"
+            className="btn-secondary"
+            style={{ padding: '8px 12px', fontSize: 12.5 }}
           >
             {savingId === vendor.id ? 'Saving...' : 'Save'}
           </button>
@@ -174,98 +169,87 @@ export default function VendorPerformancePage() {
       );
     }
 
-    if (!isAdmin) {
-      return (
-        <div className="w-full text-left">
-          <div className="flex items-center justify-between gap-3 text-xs text-slate-400">
-            <span className="text-slate-500">Score</span>
-            <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.24em] ${scoreLabelTone(vendor.performanceScore)}`}>
-              {score.toFixed(1)} / {MAX_SCORE}
-            </span>
-          </div>
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/5">
-            <div
-              className={`h-full rounded-full bg-linear-to-r ${scoreTone(vendor.performanceScore)} transition-all`}
-              style={{ width: `${scoreBarWidth(score)}%` }}
-            />
-          </div>
+    const scoreBar = (
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, fontSize: 11.5, color: 'var(--text-muted)' }}>
+          <span>{isAdmin ? 'Click to edit' : 'Score'}</span>
+          <span style={{
+            borderRadius: 999, border: `1px solid ${tier.badgeBorder}`, background: tier.badgeBg,
+            padding: '2px 8px', fontSize: 10, fontWeight: 700, color: tier.badgeColor,
+            textTransform: 'uppercase', letterSpacing: '0.06em',
+          }}>
+            {score.toFixed(1)} / {MAX_SCORE}
+          </span>
         </div>
-      );
+        <div style={{ marginTop: 8, height: 6, borderRadius: 999, overflow: 'hidden', background: 'var(--border-dim)' }}>
+          <div style={{ height: '100%', borderRadius: 999, background: tier.bar, width: `${scoreBarWidth(score)}%`, transition: 'width 300ms ease' }} />
+        </div>
+      </div>
+    );
+
+    if (!isAdmin) {
+      return <div style={{ width: '100%', textAlign: 'left' }}>{scoreBar}</div>;
     }
 
     return (
       <button
         type="button"
         onClick={() => startEditing(vendor)}
-        className="group w-full text-left"
+        style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
       >
-        <div className="flex items-center justify-between gap-3 text-xs text-slate-400">
-          <span>Click to edit</span>
-          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.24em] ${scoreLabelTone(vendor.performanceScore)}`}>
-            {score.toFixed(1)} / {MAX_SCORE}
-          </span>
-        </div>
-        <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/5">
-          <div
-            className={`h-full rounded-full bg-linear-to-r ${scoreTone(vendor.performanceScore)} transition-all`}
-            style={{ width: `${scoreBarWidth(score)}%` }}
-          />
-        </div>
+        {scoreBar}
       </button>
     );
   };
 
   return (
     <RoleGate roles={[Role.ADMIN, Role.PROCUREMENT, Role.MANAGER, Role.FINANCE]}>
-      <div className="space-y-6 px-6 py-6 text-white md:px-8">
-        <section className="rounded-4xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-black/10 backdrop-blur-xl md:p-8">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <Link to="/vendors" className="text-sm font-medium text-cyan-300 hover:text-cyan-200">← Back to Vendors</Link>
-              <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">Vendor Performance</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Manual score control plus computed operational metrics in a single review table.</p>
-            </div>
-            <button
-              onClick={loadVendors}
-              className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-300 transition hover:bg-white/10 hover:text-white"
-            >
-              Refresh
-            </button>
+      <div className="page-root animate-in">
+        <div className="page-header" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16 }}>
+          <div>
+            <Link to="/vendors" className="btn-ghost" style={{ fontSize: 12, padding: '5px 12px', display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 12, borderRadius: 20 }}>
+              ← Back to Vendors
+            </Link>
+            <h1 className="page-title">Vendor Performance</h1>
+            <p className="page-subtitle">Manual score control plus computed operational metrics in a single review table.</p>
           </div>
-        </section>
+          <button onClick={loadVendors} className="btn-secondary">
+            Refresh
+          </button>
+        </div>
 
-        <div className="overflow-hidden rounded-3xl border border-white/10 bg-[#0d1117] shadow-lg shadow-black/10">
-          <table className="w-full text-sm">
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <table className="data-table">
             <thead>
-              <tr className="border-b border-white/10 bg-slate-900/80">
-                <th className="px-5 py-3.5 text-left">{scoreHeader('Vendor Name', 'companyName')}</th>
-                <th className="px-5 py-3.5 text-left">{scoreHeader('Performance Score', 'performanceScore')}</th>
-                <th className="px-5 py-3.5 text-left">{scoreHeader('Total POs', 'totalPOs')}</th>
-                <th className="px-5 py-3.5 text-left">{scoreHeader('Invoice Mismatch Rate (%)', 'mismatchRate')}</th>
-                <th className="px-5 py-3.5 text-left">Actions</th>
+              <tr>
+                {scoreHeader('Vendor Name', 'companyName')}
+                {scoreHeader('Performance Score', 'performanceScore')}
+                {scoreHeader('Total POs', 'totalPOs')}
+                {scoreHeader('Invoice Mismatch Rate (%)', 'mismatchRate')}
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-10 text-center text-slate-400">Loading performance metrics...</td>
+                  <td colSpan={5} style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>Loading performance metrics...</td>
                 </tr>
               ) : sortedVendors.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-10 text-center text-slate-400">No vendors found.</td>
+                  <td colSpan={5} style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>No vendors found.</td>
                 </tr>
               ) : (
                 sortedVendors.map((vendor) => (
-                  <tr key={vendor.id} className="border-b border-white/5 transition hover:bg-white/5">
-                    <td className="px-5 py-4">
-                      <div className="font-medium text-white">{vendor.companyName}</div>
-                      <div className="text-xs text-slate-500">{vendor.id.slice(0, 8)}</div>
+                  <tr key={vendor.id}>
+                    <td>
+                      <div className="cell-primary">{vendor.companyName}</div>
+                      <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>{vendor.id.slice(0, 8)}</div>
                     </td>
-                    <td className="px-5 py-4">{renderScoreCell(vendor)}</td>
-                    <td className="px-5 py-4 text-slate-300">{vendor.totalPOs}</td>
-                    <td className="px-5 py-4 text-slate-300">{formatPercent(vendor.mismatchRate)}</td>
-                    <td className="px-5 py-4">
-                      <Link to={`/vendors/${vendor.id}`} className="text-cyan-300 font-medium text-xs hover:text-cyan-200">
+                    <td style={{ minWidth: 200 }}>{renderScoreCell(vendor)}</td>
+                    <td>{vendor.totalPOs}</td>
+                    <td>{formatPercent(vendor.mismatchRate)}</td>
+                    <td>
+                      <Link to={`/vendors/${vendor.id}`} style={{ color: '#22d3ee', fontWeight: 500, fontSize: 12.5 }}>
                         View →
                       </Link>
                     </td>
