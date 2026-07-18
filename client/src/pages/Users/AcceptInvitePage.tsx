@@ -49,77 +49,133 @@ export default function AcceptInvitePage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white dark:bg-slate-950">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-cyan-500 border-t-transparent" />
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-base)' }}>
+        <div style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid var(--border-subtle)', borderTopColor: 'var(--accent-primary)', animation: 'spin 0.8s linear infinite' }} />
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-white dark:bg-slate-950 p-4">
-      <div className="w-full max-w-md overflow-hidden rounded-3xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-slate-900 shadow-2xl">
-        <div className="p-8">
-          <div className="flex justify-center mb-6">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-400">
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-              </svg>
-            </div>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-base)', padding: 16 }}>
+      <div
+        style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundImage: 'radial-gradient(rgba(148,163,184,0.05) 1px, transparent 1px)',
+          backgroundSize: '24px 24px',
+          pointerEvents: 'none',
+          zIndex: 0,
+        }}
+      />
+
+      <div className="card animate-in" style={{ position: 'relative', zIndex: 1, width: '100%', maxWidth: 420, padding: 36, borderRadius: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 20 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 52,
+              height: 52,
+              borderRadius: 14,
+              background: 'linear-gradient(135deg, #06b6d4, #6366f1)',
+              boxShadow: '0 8px 24px rgba(6,182,212,0.25)',
+            }}
+          >
+            <svg style={{ width: 24, height: 24, color: '#fff' }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+            </svg>
           </div>
-          <h2 className="text-center text-2xl font-bold text-slate-900 dark:text-white">Join the Team</h2>
-          <p className="mt-2 text-center text-sm text-slate-500 dark:text-slate-400">Complete your profile to accept the invitation.</p>
-
-          {error && <div className="mt-6 rounded-xl bg-red-500/10 p-3 text-sm text-red-400">{error}</div>}
-          {success && (
-            <div className="mt-6 rounded-xl bg-emerald-500/10 p-3 text-sm text-emerald-400 text-center font-medium">
-              Invitation accepted! Redirecting to login...
-            </div>
-          )}
-
-          {!success && !error.includes('Invalid') && (
-            <form onSubmit={handleSubmit} className="mt-8 space-y-5">
-              <div>
-                <label className="block text-sm font-medium text-slate-600 dark:text-slate-300">Email Address</label>
-                <input
-                  type="email"
-                  disabled
-                  value={email}
-                  className="mt-1.5 block w-full rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 px-4 py-3 text-sm text-slate-500 cursor-not-allowed"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-600 dark:text-slate-300">Full Name</label>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="mt-1.5 block w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950 px-4 py-3 text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-600 dark:text-slate-300">Create Password</label>
-                <input
-                  type="password"
-                  required
-                  minLength={6}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="mt-1.5 block w-full rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950 px-4 py-3 text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                  placeholder="••••••••"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={submitting}
-                className="mt-6 w-full rounded-xl bg-cyan-500 py-3 text-sm font-semibold text-white shadow-lg shadow-cyan-500/30 transition hover:bg-cyan-400 disabled:opacity-50"
-              >
-                {submitting ? 'Creating account...' : 'Complete Registration'}
-              </button>
-            </form>
-          )}
         </div>
+
+        <h2 style={{ textAlign: 'center', fontSize: 22, fontWeight: 600, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.01em' }}>
+          Join the Team
+        </h2>
+        <p style={{ marginTop: 8, textAlign: 'center', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+          Complete your profile to accept the invitation.
+        </p>
+
+        {error && (
+          <div
+            style={{
+              marginTop: 20,
+              borderRadius: 10,
+              border: '1px solid rgba(239,68,68,0.3)',
+              background: 'rgba(239,68,68,0.08)',
+              padding: '10px 14px',
+              fontSize: 13,
+              color: '#ef4444',
+            }}
+          >
+            {error}
+          </div>
+        )}
+        {success && (
+          <div
+            style={{
+              marginTop: 20,
+              borderRadius: 10,
+              border: '1px solid rgba(16,185,129,0.3)',
+              background: 'rgba(16,185,129,0.08)',
+              padding: '14px 16px',
+              fontSize: 13.5,
+              color: '#10b981',
+              textAlign: 'center',
+              fontWeight: 500,
+            }}
+          >
+            Invitation accepted! Redirecting to login...
+          </div>
+        )}
+
+        {!success && !error.includes('Invalid') && (
+          <form onSubmit={handleSubmit} style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>
+                Email Address
+              </label>
+              <input
+                type="email"
+                disabled
+                value={email}
+                className="input-base"
+                style={{ width: '100%', cursor: 'not-allowed', opacity: 0.6 }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>
+                Full Name
+              </label>
+              <input
+                type="text"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="input-base"
+                style={{ width: '100%' }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 8 }}>
+                Create Password
+              </label>
+              <input
+                type="password"
+                required
+                minLength={6}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="input-base"
+                style={{ width: '100%' }}
+              />
+            </div>
+
+            <button type="submit" disabled={submitting} className="btn-primary" style={{ width: '100%', marginTop: 4 }}>
+              {submitting ? 'Creating account...' : 'Complete Registration'}
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );

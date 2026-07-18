@@ -47,34 +47,48 @@ export default function DeletedItemsSection() {
   if (user?.role !== 'ADMIN') return null;
 
   return (
-    <div className="rounded-4xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950/45 p-6 shadow-lg shadow-black/10 backdrop-blur-xl lg:col-span-2">
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Deleted Items (Soft Deletes)</h2>
-      <div className="mt-5 space-y-4 max-w-2xl">
+    <div className="card" style={{ padding: 24 }}>
+      <h2 style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', margin: 0 }}>
+        Deleted Items (Soft Deletes)
+      </h2>
+      <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 640 }}>
         {loading ? (
-          <p className="text-sm text-slate-500">Loading deleted items...</p>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>Loading deleted items...</p>
         ) : items.length === 0 ? (
-          <p className="text-sm text-slate-500">No deleted items found.</p>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>No deleted items found.</p>
         ) : (
-          <div className="rounded-xl border border-slate-200 dark:border-white/10 bg-slate-50 dark:bg-white/5 overflow-hidden">
-            <ul className="divide-y divide-slate-200 dark:divide-white/10">
-              {items.map((item) => (
-                <li key={item.id} className="flex items-center justify-between p-4 hover:bg-slate-100 dark:hover:bg-white/10 transition">
-                  <div>
-                    <span className="block text-sm font-medium text-slate-900 dark:text-slate-200">{item.name || item.email}</span>
-                    <span className="block text-xs text-slate-500">
-                      {item.type} • Deleted: {new Date(item.deletedAt).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => onRestore(item.id, item.type)}
-                    disabled={restoring === item.id}
-                    className="rounded-lg bg-cyan-500/10 px-3 py-1.5 text-xs font-semibold text-cyan-600 dark:text-cyan-400 hover:bg-cyan-500/20 transition disabled:opacity-50"
-                  >
-                    {restoring === item.id ? 'Restoring...' : 'Restore'}
-                  </button>
-                </li>
-              ))}
-            </ul>
+          <div style={{ borderRadius: 10, border: '1px solid var(--border-dim)', background: 'var(--bg-surface)', overflow: 'hidden' }}>
+            {items.map((item, index) => (
+              <div
+                key={item.id}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: 16, borderTop: index === 0 ? 'none' : '1px solid var(--border-dim)',
+                  transition: 'background 150ms',
+                }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)')}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.background = 'transparent')}
+              >
+                <div>
+                  <span style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{item.name || item.email}</span>
+                  <span style={{ display: 'block', fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 }}>
+                    {item.type} · Deleted: {new Date(item.deletedAt).toLocaleDateString()}
+                  </span>
+                </div>
+                <button
+                  onClick={() => onRestore(item.id, item.type)}
+                  disabled={restoring === item.id}
+                  style={{
+                    borderRadius: 8, border: 'none', background: 'rgba(6,182,212,0.1)',
+                    padding: '6px 12px', fontSize: 12, fontWeight: 600, color: '#22d3ee',
+                    cursor: restoring === item.id ? 'not-allowed' : 'pointer',
+                    opacity: restoring === item.id ? 0.5 : 1, transition: 'background 150ms',
+                  }}
+                >
+                  {restoring === item.id ? 'Restoring...' : 'Restore'}
+                </button>
+              </div>
+            ))}
           </div>
         )}
       </div>

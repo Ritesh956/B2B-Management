@@ -15,6 +15,24 @@ type AuditLog = {
   metadata?: Record<string, unknown>;
 };
 
+const getActionStyle = (action: string): React.CSSProperties => {
+  const act = action.toUpperCase();
+  if (act.includes('CREATE')) return { background: 'rgba(59,130,246,0.15)', color: '#60a5fa', border: '1px solid rgba(59,130,246,0.3)' };
+  if (act.includes('APPROVE') || act.includes('MATCH')) return { background: 'rgba(16,185,129,0.15)', color: '#34d399', border: '1px solid rgba(16,185,129,0.3)' };
+  if (act.includes('REJECT') || act.includes('MISMATCH')) return { background: 'rgba(239,68,68,0.15)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' };
+  if (act.includes('UPDATE') || act.includes('EDIT')) return { background: 'rgba(245,158,11,0.15)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.3)' };
+  if (act.includes('UPLOAD')) return { background: 'rgba(139,92,246,0.15)', color: '#c4b5fd', border: '1px solid rgba(139,92,246,0.3)' };
+  return { background: 'rgba(100,116,139,0.15)', color: 'var(--text-secondary)', border: '1px solid var(--border-dim)' };
+};
+
+const ROLE_COLORS: Record<string, string> = {
+  ADMIN: '#8b5cf6',
+  FINANCE: '#3b82f6',
+  PROCUREMENT: '#10b981',
+  MANAGER: '#f59e0b',
+  VENDOR: '#f43f5e',
+};
+
 export default function ActivityFeed({ entity, entityId }: { entity: string; entityId: string }) {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,64 +54,55 @@ export default function ActivityFeed({ entity, entityId }: { entity: string; ent
     return () => clearInterval(interval);
   }, [fetchLogs]);
 
-  const getActionColor = (action: string) => {
-    const act = action.toUpperCase();
-    if (act.includes('CREATE')) return 'bg-blue-500/15 text-blue-400 border border-blue-500/30';
-    if (act.includes('APPROVE') || act.includes('MATCH')) return 'bg-green-500/15 text-green-400 border border-green-500/30';
-    if (act.includes('REJECT') || act.includes('MISMATCH')) return 'bg-red-500/15 text-red-400 border border-red-500/30';
-    if (act.includes('UPDATE') || act.includes('EDIT')) return 'bg-amber-500/15 text-amber-400 border border-amber-500/30';
-    if (act.includes('UPLOAD')) return 'bg-purple-500/15 text-purple-400 border border-purple-500/30';
-    return 'bg-slate-500/15 text-slate-500 dark:text-slate-400 border border-slate-500/30';
-  };
-
-  const getRoleColor = (role: string) => {
-    switch (role) {
-      case 'ADMIN': return 'bg-violet-500 text-white';
-      case 'FINANCE': return 'bg-blue-500 text-white';
-      case 'PROCUREMENT': return 'bg-emerald-500 text-white';
-      case 'MANAGER': return 'bg-amber-500 text-white';
-      case 'VENDOR': return 'bg-rose-500 text-white';
-      default: return 'bg-slate-500 text-white';
-    }
-  };
-
   return (
-    <div className="rounded-4xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-950/45 p-6 shadow-lg shadow-black/10 backdrop-blur-xl h-full flex flex-col">
-      <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Activity Feed</h2>
-        <div className="flex items-center gap-2">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
-          </span>
-          <span className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Live</span>
+    <div className="card" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <h2 style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>Activity Feed</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className="animate-pulse" style={{ width: 8, height: 8, borderRadius: '50%', background: '#06b6d4' }} />
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Live</span>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto pr-2 -mr-2 space-y-6">
+      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 24 }}>
         {loading && logs.length === 0 ? (
-          <div className="text-center text-sm text-slate-500 dark:text-slate-400 py-4">Loading activity...</div>
+          <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-muted)', padding: '16px 0' }}>Loading activity...</div>
         ) : logs.length === 0 ? (
-          <div className="text-center text-sm text-slate-500 dark:text-slate-400 py-4">No activity recorded yet</div>
+          <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-muted)', padding: '16px 0' }}>No activity recorded yet</div>
         ) : (
-          <div className="relative border-l border-slate-200 dark:border-white/10 ml-4 space-y-8 pb-4">
+          <div style={{ position: 'relative', borderLeft: '1px solid var(--border-dim)', marginLeft: 16, display: 'flex', flexDirection: 'column', gap: 32, paddingBottom: 16 }}>
             {logs.map((log) => (
-              <div key={log.id} className="relative pl-6">
-                <div className={`absolute -left-4 top-0.5 flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ring-4 ring-white dark:ring-slate-950 ${getRoleColor(log.user.role)}`}>
+              <div key={log.id} style={{ position: 'relative', paddingLeft: 24 }}>
+                <div style={{
+                  position: 'absolute', left: -16, top: 2,
+                  width: 32, height: 32, borderRadius: '50%',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 12, fontWeight: 700, color: '#fff',
+                  background: ROLE_COLORS[log.user.role] ?? '#64748b',
+                  boxShadow: '0 0 0 4px var(--bg-card)',
+                }}>
                   {log.user.name.charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <span className="text-sm font-medium text-slate-900 dark:text-white">{log.user.name}</span>
-                    <span className={`px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-full ${getActionColor(log.action)}`}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--text-primary)' }}>{log.user.name}</span>
+                    <span style={{
+                      padding: '2px 8px', borderRadius: 999, fontSize: 10, fontWeight: 600,
+                      textTransform: 'uppercase', letterSpacing: '0.05em',
+                      ...getActionStyle(log.action),
+                    }}>
                       {log.action}
                     </span>
-                    <span className="text-xs text-slate-500 ml-auto shrink-0 whitespace-nowrap">
+                    <span style={{ fontSize: 11.5, color: 'var(--text-muted)', marginLeft: 'auto', flexShrink: 0, whiteSpace: 'nowrap' }}>
                       {formatDistanceToNow(new Date(log.createdAt), { addSuffix: true })}
                     </span>
                   </div>
                   {log.metadata && Object.keys(log.metadata).length > 0 && (
-                    <div className="mt-2 rounded-xl bg-slate-50 dark:bg-white/5 p-3 text-xs text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-white/5 whitespace-pre-wrap break-words">
+                    <div style={{
+                      marginTop: 8, borderRadius: 10, background: 'var(--bg-surface)',
+                      border: '1px solid var(--border-dim)', padding: 12,
+                      fontSize: 11.5, color: 'var(--text-muted)', whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                    }}>
                       {Object.entries(log.metadata)
                         .map(([k, v]) => `${k}: ${v}`)
                         .join('\n')}

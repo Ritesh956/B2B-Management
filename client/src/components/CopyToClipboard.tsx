@@ -25,9 +25,30 @@ export default function CopyToClipboard({ text, label }: Props) {
       onClick={handleCopy}
       title="Copy to clipboard"
       aria-label={label || 'Copy to clipboard'}
-      className="ml-2 inline-flex h-6 w-6 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-500/50"
+      style={{
+        marginLeft: 8,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 24,
+        height: 24,
+        borderRadius: 6,
+        border: 'none',
+        background: 'transparent',
+        color: 'var(--text-muted)',
+        cursor: 'pointer',
+        transition: 'background 150ms, color 150ms',
+      }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
+        (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLElement).style.background = 'transparent';
+        (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
+      }}
     >
-      {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+      {copied ? <Check size={12} color="#34d399" /> : <Copy size={12} />}
     </button>
   );
 }

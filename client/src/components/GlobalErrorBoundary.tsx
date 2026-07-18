@@ -26,27 +26,35 @@ export default class GlobalErrorBoundary extends Component<Props, State> {
   public render() {
     if (this.state.hasError) {
       return (
-        <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 px-4 text-center">
-          <div className="rounded-4xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/50 p-8 shadow-2xl backdrop-blur-xl max-w-md w-full">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 mb-6">
-              <AlertTriangle className="h-8 w-8" />
+        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-base)', padding: 16, textAlign: 'center' }}>
+          <div className="card" style={{ maxWidth: 420, width: '100%', padding: 32 }}>
+            <div style={{
+              margin: '0 auto 24px', width: 64, height: 64, borderRadius: '50%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(239,68,68,0.12)', color: '#f87171',
+            }}>
+              <AlertTriangle size={32} />
             </div>
-            <h1 className="text-xl font-bold text-slate-900 dark:text-white mb-2">Something went wrong</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+            <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 8px' }}>Something went wrong</h1>
+            <p style={{ fontSize: 13.5, color: 'var(--text-muted)', margin: '0 0 24px', lineHeight: 1.6 }}>
               We encountered an unexpected error. Don't worry, your data is safe. Try reloading the application.
             </p>
             {this.state.error && (
-              <div className="mb-6 rounded-xl bg-slate-50 dark:bg-black/20 p-4 text-left overflow-auto max-h-32">
-                <code className="text-xs text-red-500 dark:text-red-400">
+              <div style={{
+                marginBottom: 24, borderRadius: 10, background: 'var(--bg-surface)',
+                padding: 14, textAlign: 'left', overflow: 'auto', maxHeight: 128,
+              }}>
+                <code style={{ fontSize: 11.5, color: '#f87171' }}>
                   {this.state.error.toString()}
                 </code>
               </div>
             )}
             <button
               onClick={() => window.location.href = '/'}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 dark:bg-white px-4 py-3 text-sm font-semibold text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 transition"
+              className="btn-primary"
+              style={{ width: '100%' }}
             >
-              <RefreshCcw className="h-4 w-4" />
+              <RefreshCcw size={16} />
               Reload Application
             </button>
           </div>

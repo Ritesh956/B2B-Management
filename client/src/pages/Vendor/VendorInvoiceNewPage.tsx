@@ -68,106 +68,87 @@ export default function VendorInvoiceNewPage() {
   };
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">Submit New Invoice</h1>
-        <p className="mt-1 text-sm text-slate-500">Submit an invoice against an approved purchase order.</p>
+    <div className="page-root animate-in" style={{ maxWidth: 680 }}>
+      <div className="page-header">
+        <h1 className="page-title">Submit New Invoice</h1>
+        <p className="page-subtitle">Submit an invoice against an approved purchase order.</p>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="rounded-3xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900 p-8 shadow-sm">
-        <div className="space-y-6">
-          {/* PO Selection */}
-          <div>
-            <label className="mb-2 block text-sm font-medium text-slate-900 dark:text-slate-300">
-              Select Purchase Order
-            </label>
-            <select
-              {...register('poId')}
-              className={`w-full rounded-xl border bg-slate-50 dark:bg-slate-800/50 px-4 py-3 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition ${
-                errors.poId ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20' : 'border-slate-200 dark:border-white/10 focus:border-emerald-500/50'
-              }`}
-            >
-              <option value="">Select an approved PO</option>
-              {availablePOs.map((po) => (
-                <option key={po.id} value={po.id}>
-                  {po.poNumber} — {formatCurrency(po.totalAmount)}
-                </option>
-              ))}
-            </select>
-            {isLoadingPOs && <p className="mt-2 text-xs text-slate-500">Loading your purchase orders...</p>}
-            {errors.poId && <p className="mt-2 text-sm text-red-400">{errors.poId.message}</p>}
-          </div>
-
-          {selectedPO && (
-            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
-              <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">PO Details Reference</p>
-              <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">Total Approved Amount: {formatCurrency(selectedPO.totalAmount)}</p>
-            </div>
-          )}
-
-          {/* Invoice Number */}
-          <div>
-            <label className="mb-2 block text-sm font-medium text-slate-900 dark:text-slate-300">
-              Invoice Number
-            </label>
-            <input
-              type="text"
-              {...register('invoiceNumber')}
-              placeholder="e.g. INV-2026-001"
-              className={`w-full rounded-xl border bg-slate-50 dark:bg-slate-800/50 px-4 py-3 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition ${
-                errors.invoiceNumber ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20' : 'border-slate-200 dark:border-white/10 focus:border-emerald-500/50'
-              }`}
-            />
-            {errors.invoiceNumber && <p className="mt-2 text-sm text-red-400">{errors.invoiceNumber.message}</p>}
-          </div>
-
-          {/* Invoice Amount */}
-          <div>
-            <label className="mb-2 block text-sm font-medium text-slate-900 dark:text-slate-300">
-              Invoice Amount (₹)
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              {...register('amount')}
-              placeholder="0.00"
-              className={`w-full rounded-xl border bg-slate-50 dark:bg-slate-800/50 px-4 py-3 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50 transition ${
-                errors.amount ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20' : 'border-slate-200 dark:border-white/10 focus:border-emerald-500/50'
-              }`}
-            />
-            {errors.amount && <p className="mt-2 text-sm text-red-400">{errors.amount.message}</p>}
-          </div>
-
-          {/* PDF Upload */}
-          <div>
-            <label className="mb-2 block text-sm font-medium text-slate-900 dark:text-slate-300">
-              Invoice PDF
-            </label>
-            <input
-              type="file"
-              accept=".pdf"
-              {...register('file')}
-              className={`w-full rounded-xl border bg-slate-50 dark:bg-slate-800/50 px-4 py-3 text-sm text-slate-500 dark:text-slate-400 file:mr-4 file:rounded-full file:border-0 file:bg-emerald-50 dark:file:bg-emerald-500/20 file:px-4 file:py-2 file:text-sm file:font-medium file:text-emerald-700 dark:file:text-emerald-300 hover:file:bg-emerald-100 dark:hover:file:bg-emerald-500/30 transition focus:outline-none focus:ring-2 focus:ring-emerald-500/50 ${
-                errors.file ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20' : 'border-slate-200 dark:border-white/10 focus:border-emerald-500/50'
-              }`}
-            />
-            {errors.file && <p className="mt-2 text-sm text-red-400">{errors.file.message as string}</p>}
-          </div>
+      <form onSubmit={handleSubmit(onSubmit)} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {/* PO Selection */}
+        <div>
+          <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+            Select Purchase Order
+          </label>
+          <select {...register('poId')} className="input-base">
+            <option value="">Select an approved PO</option>
+            {availablePOs.map((po) => (
+              <option key={po.id} value={po.id}>
+                {po.poNumber} — {formatCurrency(po.totalAmount)}
+              </option>
+            ))}
+          </select>
+          {isLoadingPOs && <p style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)' }}>Loading your purchase orders...</p>}
+          {errors.poId && <p style={{ marginTop: 8, fontSize: 12.5, color: '#f87171' }}>{errors.poId.message}</p>}
         </div>
 
-        <div className="mt-8 flex items-center justify-end gap-4 border-t border-slate-200 dark:border-white/10 pt-6">
-          <button
-            type="button"
-            onClick={() => navigate('/vendor/dashboard')}
-            className="rounded-xl px-5 py-2.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-50 dark:bg-white/5 transition"
-          >
+        {selectedPO && (
+          <div style={{ borderRadius: 10, border: '1px solid rgba(16,185,129,0.3)', background: 'rgba(16,185,129,0.08)', padding: 14 }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: '#34d399', margin: 0 }}>PO Details Reference</p>
+            <p style={{ marginTop: 4, fontSize: 12.5, color: 'var(--text-secondary)' }}>
+              Total Approved Amount: {formatCurrency(selectedPO.totalAmount)}
+            </p>
+          </div>
+        )}
+
+        {/* Invoice Number */}
+        <div>
+          <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+            Invoice Number
+          </label>
+          <input
+            type="text"
+            {...register('invoiceNumber')}
+            placeholder="e.g. INV-2026-001"
+            className="input-base"
+          />
+          {errors.invoiceNumber && <p style={{ marginTop: 8, fontSize: 12.5, color: '#f87171' }}>{errors.invoiceNumber.message}</p>}
+        </div>
+
+        {/* Invoice Amount */}
+        <div>
+          <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+            Invoice Amount (₹)
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            {...register('amount')}
+            placeholder="0.00"
+            className="input-base"
+          />
+          {errors.amount && <p style={{ marginTop: 8, fontSize: 12.5, color: '#f87171' }}>{errors.amount.message}</p>}
+        </div>
+
+        {/* PDF Upload */}
+        <div>
+          <label style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
+            Invoice PDF
+          </label>
+          <input
+            type="file"
+            accept=".pdf"
+            {...register('file')}
+            className="input-base"
+          />
+          {errors.file && <p style={{ marginTop: 8, fontSize: 12.5, color: '#f87171' }}>{errors.file.message as string}</p>}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 12, marginTop: 8, paddingTop: 20, borderTop: '1px solid var(--border-dim)' }}>
+          <button type="button" onClick={() => navigate('/vendor/dashboard')} className="btn-ghost">
             Cancel
           </button>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-medium text-slate-900 dark:text-white transition hover:bg-emerald-500 disabled:opacity-50"
-          >
+          <button type="submit" disabled={isSubmitting} className="btn-primary">
             {isSubmitting ? 'Submitting...' : 'Submit Invoice'}
           </button>
         </div>
